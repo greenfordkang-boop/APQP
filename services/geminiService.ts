@@ -3,7 +3,19 @@ import { Task, ProjectInfo, AIAnalysisResult } from '../types';
 
 export const analyzeProjectRisks = async (project: ProjectInfo, tasks: Task[]): Promise<AIAnalysisResult> => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+
+    if (!apiKey || apiKey === 'your-gemini-api-key-here') {
+      console.warn('Gemini API key not configured. Using fallback response.');
+      return {
+        riskLevel: 'Medium',
+        summary: "AI 서비스를 사용하려면 .env 파일에 VITE_GEMINI_API_KEY를 설정하세요.",
+        recommendations: ["API 키 설정 필요", "환경변수 확인 요망"],
+        iatfClauseReference: "N/A"
+      };
+    }
+
+    const ai = new GoogleGenAI({ apiKey });
 
     // Filter only relevant delayed tasks to reduce token count and focus context
     const delayedTasks = tasks.filter(t => t.status === 'Delayed' || (t.actual?.end && t.plan.end && new Date(t.actual.end) > new Date(t.plan.end)));

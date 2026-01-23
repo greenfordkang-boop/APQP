@@ -22,11 +22,16 @@ export interface Milestone {
 }
 
 export interface ProjectInfo {
+  id?: number;
   name: string;
   partNo: string;
   client: string;
   manager: string;
   milestones: Milestone[];
+  startDate?: string;
+  endDate?: string;
+  status?: 'Planning' | 'In Progress' | 'On Hold' | 'Completed';
+  progress?: number;
 }
 
 export interface TaskDocument {
@@ -44,4 +49,35 @@ export interface AIAnalysisResult {
   summary: string;
   recommendations: string[];
   iatfClauseReference: string;
+}
+
+export interface FmeaRow {
+  id?: string;
+  processStep: string;
+  function: string;
+  failureMode: string;
+  effects: string;
+  severity: number;
+  causes: string;
+  occurrence: number;
+  controls: string;
+  detection: number;
+  rpn: number;
+  actions: string;
+  responsibility: string;
+  targetDate: string;
+}
+
+export interface FmeaRevision {
+  version: number;
+  timestamp: string;
+  user: string;
+  changes: string;
+}
+
+export interface FmeaData {
+  rows: FmeaRow[];
+  revisions: FmeaRevision[];
+  version: number;
+  lastModified?: string;
 }

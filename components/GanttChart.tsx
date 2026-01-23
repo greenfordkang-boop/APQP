@@ -1,17 +1,25 @@
 import React, { useMemo } from 'react';
-import { Task } from '../types';
-import { getGridPosition, getDelayStatus, addDays } from '../utils';
-import { AlertCircle, Paperclip } from 'lucide-react';
+import { Task, Milestone } from '../types';
+import { getGridPosition, getDelayStatus, addDays, formatDate } from '../utils';
+import { AlertCircle, Paperclip, Flag } from 'lucide-react';
 
 interface Props {
   tasks: Task[];
+  milestones?: Milestone[];
   startDate: string;
   totalDays?: number;
   onTaskClick?: (task: Task) => void;
   documentCounts?: Record<number, number>;
 }
 
-export const GanttChart: React.FC<Props> = ({ tasks, startDate, totalDays = 670, onTaskClick, documentCounts = {} }) => {
+export const GanttChart: React.FC<Props> = ({ tasks, milestones = [], startDate, totalDays = 670, onTaskClick, documentCounts = {} }) => {
+  const chartStart = new Date(startDate);
+
+  const calculateMilestonePosition = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const daysDiff = Math.floor((date.getTime() - chartStart.getTime()) / (1000 * 60 * 60 * 24));
+    return (daysDiff / totalDays) * 100;
+  };
   // Generate timeline headers (Years & Months)
   const timelineData = useMemo(() => {
     const months = [];
@@ -220,6 +228,31 @@ export const GanttChart: React.FC<Props> = ({ tasks, startDate, totalDays = 670,
               })}
             </div>
           ))}
+
+          {/* Milestone Overlay */}
+          {milestones && milestones.length > 0 && (
+            <div className="absolute inset-0 pointer-events-none">
+              {milestones.map((milestone, idx) => {
+                const position = calculateMilestonePosition(milestone.date);
+                if (position >= 0 && position <= 100) {
+                  return (
+                    <div
+                      key={idx}
+                      className="absolute top-0 bottom-0 border-l-2 border-dashed border-purple-400"
+                      style={{ left: `${position}%` }}
+                      title={`${milestone.name}: ${formatDate(milestone.date)}`}
+                    >
+                      <div className="absolute -top-6 -left-12 flex items-center space-x-1 bg-white px-2 py-1 rounded shadow-sm border border-purple-200 text-xs font-medium text-purple-700">
+                        <Flag size={12} />
+                        <span>{milestone.name}</span>
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>
