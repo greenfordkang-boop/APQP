@@ -1,0 +1,5 @@
+{
+  "name": "IATF 16949 e-Dev Plan",
+  "description": "IATF 16949 자동차 전장 개발 계획 대시보드 (계획 대 실적 추적 및 Gemini AI 리스크 분석 기능 포함).",
+  "requestFramePermissions": []
+}
