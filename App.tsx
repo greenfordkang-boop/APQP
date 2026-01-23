@@ -1,7 +1,9 @@
+
 import React, { useState, useEffect } from 'react';
 import { MOCK_PROJECT, MOCK_TASKS } from './constants';
 import { Task, ProjectInfo } from './types';
 import { GanttChart } from './components/GanttChart';
+import { PortfolioGantt } from './components/PortfolioGantt';
 import { MilestoneBoard } from './components/MilestoneBoard';
 import { InsightPanel } from './components/InsightPanel';
 import { TaskDetailModal } from './components/TaskDetailModal';
@@ -34,6 +36,7 @@ const App: React.FC = () => {
 
   // UI state
   const [isInsightOpen, setIsInsightOpen] = useState(true);
+  const [isProjectFormOpen, setIsProjectFormOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<ProjectInfo | undefined>(undefined);
@@ -275,12 +278,9 @@ const App: React.FC = () => {
                 onTaskClick={handleTaskClick}
                 documentCounts={docCounts}
               />
-            </div>
-          </div>
-
-          {/* Right: AI Panel Placeholder (Visual spacer for the fixed panel) */}
-          <div className={`transition-all duration-300 ease-in-out ${isInsightOpen ? 'w-96' : 'w-0'}`}></div>
-        </div>
+            </>
+           )
+        )}
       </main>
 
       {/* Fixed Sidebar */}
@@ -313,6 +313,15 @@ const App: React.FC = () => {
           onDelete={handleProjectDelete}
         />
       )}
+
+      {/* Project Form Modal (Create / Edit) */}
+      <ProjectEditModal 
+        project={projectToEdit}
+        isOpen={isProjectFormOpen}
+        onClose={() => setIsProjectFormOpen(false)}
+        onSave={handleProjectSave}
+        onDelete={handleProjectDelete}
+      />
     </div>
   );
 };

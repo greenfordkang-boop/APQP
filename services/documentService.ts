@@ -1,7 +1,9 @@
+
 import { supabase, isSupabaseConfigured } from './supabaseClient';
-import { TaskDocument } from '../types';
+import { TaskDocument, FmeaRow, FmeaData } from '../types';
 
 const MOCK_STORAGE_KEY = 'mock_task_documents';
+const MOCK_FMEA_DATA_KEY = 'mock_fmea_data_';
 
 // File upload security settings
 const ALLOWED_MIME_TYPES = [
@@ -113,8 +115,76 @@ export const uploadDocument = async (taskId: number, file: File): Promise<TaskDo
     };
 
     const existing = JSON.parse(localStorage.getItem(MOCK_STORAGE_KEY) || '[]');
-    localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify([...existing, mockDoc]));
+    try {
+      localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify([...existing, mockDoc]));
+    } catch (e) {
+        alert('브라우저 저장공간이 부족하여 파일 내용을 저장하지 못했습니다. (목록에는 표시됩니다)');
+    }
     return mockDoc;
+  }
+};
+
+export const saveFmeaDocument = async (taskId: number, fileName: string, data: FmeaData): Promise<TaskDocument | null> => {
+  const jsonContent = JSON.stringify(data, null, 2); // Pretty print for preview
+  const blob = new Blob([jsonContent], { type: 'application/json' });
+  const file = new File([blob], fileName, { type: 'application/json' });
+
+  // For FMEA, we can just use the uploadDocument logic as it handles Mock/Supabase switching
+  if (isSupabaseConfigured()) {
+      return await uploadDocument(taskId, file);
+  } else {
+      // Mock Mode: Reuse uploadDocument
+      const doc = await uploadDocument(taskId, file);
+      
+      // Also save raw data for the editor key to persist edits
+      if (doc) {
+        localStorage.setItem(`${MOCK_FMEA_DATA_KEY}${doc.id}`, JSON.stringify(data));
+      }
+      return doc;
+  }
+};
+
+export const loadFmeaData = async (doc: TaskDocument): Promise<FmeaData | null> => {
+  let rawData: any = null;
+
+  if (isSupabaseConfigured()) {
+    try {
+      const response = await fetch(doc.url);
+      if (!response.ok) throw new Error('Network response was not ok');
+      rawData = await response.json();
+    } catch (e) {
+      console.error("Failed to load FMEA data from URL", e);
+      return null;
+    }
+  } else {
+    // Mock Mode
+    const dataString = localStorage.getItem(`${MOCK_FMEA_DATA_KEY}${doc.id}`);
+    if (dataString) {
+      rawData = JSON.parse(dataString);
+    } else if (doc.url && doc.url.startsWith('data:')) {
+        try {
+            const base64 = doc.url.split(',')[1];
+            // Safe decode for UTF-8
+            const jsonStr = decodeURIComponent(atob(base64).split('').map(function(c) {
+                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+            }).join(''));
+            rawData = JSON.parse(jsonStr);
+        } catch(e) {
+            console.error('Failed to parse FMEA from Base64', e);
+        }
+    }
+  }
+
+  if (!rawData) return null;
+
+  // Backward Compatibility: Check if it's an array (Old format) or object (New format)
+  if (Array.isArray(rawData)) {
+    return {
+      rows: rawData as FmeaRow[],
+      history: []
+    };
+  } else {
+    return rawData as FmeaData;
   }
 };
 
@@ -146,41 +216,28 @@ export const deleteDocument = async (docId: string | number): Promise<boolean> =
       .delete()
       .eq('id', docId);
     
-    // Note: Ideally we also delete from Storage, but we need the path for that. 
     return !error;
   } else {
     // --- Mock Implementation ---
     await delay(300);
     const allDocs = JSON.parse(localStorage.getItem(MOCK_STORAGE_KEY) || '[]');
-    // Use String conversion for safe comparison in mock mode where types might be loose
     const newDocs = allDocs.filter((d: TaskDocument) => String(d.id) !== String(docId));
     localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify(newDocs));
+    localStorage.removeItem(`${MOCK_FMEA_DATA_KEY}${docId}`);
     return true;
   }
 };
 
 export const getTaskDocumentCounts = async (): Promise<Record<number, number>> => {
   const counts: Record<number, number> = {};
-
   if (isSupabaseConfigured()) {
-    // Fetch all task_ids from documents table to count them
-    // Note: For large datasets, a proper count query or view is better. 
-    // For this dashboard, fetching 'task_id' is lightweight enough.
-    const { data, error } = await supabase
-      .from('documents')
-      .select('task_id');
-    
+    const { data, error } = await supabase.from('documents').select('task_id');
     if (data) {
-      data.forEach((row: any) => {
-        counts[row.task_id] = (counts[row.task_id] || 0) + 1;
-      });
+      data.forEach((row: any) => { counts[row.task_id] = (counts[row.task_id] || 0) + 1; });
     }
   } else {
-    // --- Mock Implementation ---
     const allDocs = JSON.parse(localStorage.getItem(MOCK_STORAGE_KEY) || '[]');
-    allDocs.forEach((d: TaskDocument) => {
-      counts[d.task_id] = (counts[d.task_id] || 0) + 1;
-    });
+    allDocs.forEach((d: TaskDocument) => { counts[d.task_id] = (counts[d.task_id] || 0) + 1; });
   }
   return counts;
 };

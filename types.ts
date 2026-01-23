@@ -1,3 +1,4 @@
+
 export type TaskStatus = 'Completed' | 'In Progress' | 'Pending' | 'Delayed';
 
 export interface DateRange {
@@ -27,6 +28,10 @@ export interface ProjectInfo {
   partNo: string;
   client: string;
   manager: string;
+  startDate: string; // Added for portfolio Gantt
+  endDate: string;   // Added for portfolio Gantt
+  status: 'On Track' | 'Delayed' | 'Critical' | 'Completed'; // Overall status
+  progress: number; // 0-100
   milestones: Milestone[];
   startDate?: string;
   endDate?: string;
