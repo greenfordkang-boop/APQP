@@ -8,12 +8,16 @@ import { MilestoneBoard } from './components/MilestoneBoard';
 import { InsightPanel } from './components/InsightPanel';
 import { TaskDetailModal } from './components/TaskDetailModal';
 import { ProjectEditModal } from './components/ProjectEditModal';
+import { LoginScreen } from './components/LoginScreen';
 import { getTaskDocumentCounts } from './services/documentService';
 import { BarChart3, Layout, Settings, Share2, Sparkles, UserCircle, Plus, List, Edit2 } from 'lucide-react';
 
 type ViewMode = 'dashboard' | 'detail';
 
 const App: React.FC = () => {
+  // Authentication state
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
   // View state
   const [viewMode, setViewMode] = useState<ViewMode>('dashboard');
   const [currentProject, setCurrentProject] = useState<ProjectInfo | null>(null);
@@ -110,6 +114,22 @@ const App: React.FC = () => {
       setIsProjectModalOpen(true);
     }
   };
+
+  useEffect(() => {
+    const auth = localStorage.getItem('apqp_authenticated');
+    if (auth === 'true') {
+      setIsAuthenticated(true);
+    }
+  }, []);
+
+  const handleLogin = () => {
+    setIsAuthenticated(true);
+  };
+
+  // Show login screen if not authenticated
+  if (!isAuthenticated) {
+    return <LoginScreen onLogin={handleLogin} />;
+  }
 
   // Dashboard View (Portfolio)
   if (viewMode === 'dashboard') {
