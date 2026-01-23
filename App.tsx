@@ -278,9 +278,9 @@ const App: React.FC = () => {
                 onTaskClick={handleTaskClick}
                 documentCounts={docCounts}
               />
-            </>
-           )
-        )}
+            </div>
+          </div>
+        </div>
       </main>
 
       {/* Fixed Sidebar */}
@@ -313,15 +313,6 @@ const App: React.FC = () => {
           onDelete={handleProjectDelete}
         />
       )}
-
-      {/* Project Form Modal (Create / Edit) */}
-      <ProjectEditModal 
-        project={projectToEdit}
-        isOpen={isProjectFormOpen}
-        onClose={() => setIsProjectFormOpen(false)}
-        onSave={handleProjectSave}
-        onDelete={handleProjectDelete}
-      />
     </div>
   );
 };
