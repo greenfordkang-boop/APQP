@@ -36,3 +36,4 @@ dist-ssr
 *.tmp
 *.cache
 .vercel
+.vercel-env.json
