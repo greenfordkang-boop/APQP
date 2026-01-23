@@ -1,5 +1,6 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
-import { Task, ProjectInfo, AIAnalysisResult } from '../types';
+import { Task, ProjectInfo, AIAnalysisResult, FmeaRow } from '../types';
 
 export const analyzeProjectRisks = async (project: ProjectInfo, tasks: Task[]): Promise<AIAnalysisResult> => {
   try {
@@ -68,5 +69,130 @@ export const analyzeProjectRisks = async (project: ProjectInfo, tasks: Task[]): 
       recommendations: ["Critical Path 수동 점검 필요", "리소스 할당 재확인 요망"],
       iatfClauseReference: "N/A"
     };
+  }
+};
+
+export const generateProcessFMEA = async (taskName: string, projectName: string, processContext?: string): Promise<FmeaRow[]> => {
+  // Backward compatibility wrapper using the stream logic but waiting for completion
+  return new Promise<FmeaRow[]>((resolve) => {
+    let finalRows: FmeaRow[] = [];
+    generateProcessFMEAStream(taskName, projectName, (rows) => {
+        finalRows = rows;
+    }, processContext).then(() => resolve(finalRows));
+  });
+};
+
+// Streaming Version for faster UX
+export const generateProcessFMEAStream = async (
+  taskName: string, 
+  projectName: string,
+  onUpdate: (rows: FmeaRow[]) => void,
+  processContext?: string // Optional: specific process step to focus on
+): Promise<void> => {
+  try {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    
+    // Construct Prompt based on whether user provided specific process context
+    let specificInstruction = '';
+    let targetFields = '';
+
+    if (processContext && processContext.trim().length > 0) {
+      specificInstruction = `
+        FOCUS ONLY ON THE PROCESS STEP: "${processContext}".
+        Generate 3 distinct failure modes specifically for "${processContext}".
+        The 'processStep' field in the output must be "${processContext}" (or specific sub-steps of it).
+      `;
+    } else {
+      specificInstruction = `
+        Create a generic Process FMEA (PFMEA) for the task: "${taskName}".
+        Generate 3 most important failure modes for this task.
+      `;
+    }
+
+    const prompt = `
+      You are an IATF 16949 Quality Engineer.
+      Project: "${projectName}".
+      
+      ${specificInstruction}
+      
+      CRITICAL INSTRUCTIONS:
+      1. Generate EXACTLY 3 rows.
+      2. Response must be a raw JSON ARRAY.
+      3. Language: KOREAN (Hangul).
+      4. Auto-calculate RPN (Severity * Occurrence * Detection).
+      
+      Fields required: processStep, failureMode, failureEffect, severity(1-10), failureCause, occurrence(1-10), controls, detection(1-10), action.
+    `;
+
+    const responseStream = await ai.models.generateContentStream({
+      model: 'gemini-3-flash-preview',
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              processStep: { type: Type.STRING },
+              failureMode: { type: Type.STRING },
+              failureEffect: { type: Type.STRING },
+              severity: { type: Type.INTEGER },
+              failureCause: { type: Type.STRING },
+              occurrence: { type: Type.INTEGER },
+              controls: { type: Type.STRING },
+              detection: { type: Type.INTEGER },
+              action: { type: Type.STRING }
+            }
+          }
+        }
+      }
+    });
+
+    let fullText = '';
+    
+    for await (const chunk of responseStream) {
+      fullText += chunk.text;
+      
+      try {
+        // Robust cleaning: remove markdown blocks if present (```json ... ```)
+        // Also remove any text before the first '['
+        let cleanText = fullText.replace(/```json/g, '').replace(/```/g, '');
+        const openBracketIndex = cleanText.indexOf('[');
+        
+        if (openBracketIndex !== -1) {
+            cleanText = cleanText.substring(openBracketIndex);
+            
+            // Find the last closing brace '}' that might end an object
+            const lastCloseBraceIndex = cleanText.lastIndexOf('}');
+            
+            if (lastCloseBraceIndex !== -1) {
+                 // Try to parse the valid sub-section as a complete array
+                 // We construct: [ ...found_objects... ]
+                 // By taking the substring up to the last '}' and appending ']'
+                 // This handles the case where the stream is in the middle of an object or comma
+                 const potentialJson = cleanText.substring(0, lastCloseBraceIndex + 1) + ']';
+                 
+                 const parsed = JSON.parse(potentialJson);
+                 if (Array.isArray(parsed)) {
+                     // Calculate RPN on the fly
+                     const rows = parsed.map((r: any) => ({
+                        ...r,
+                        severity: r.severity || 0,
+                        occurrence: r.occurrence || 0,
+                        detection: r.detection || 0,
+                        rpn: (r.severity || 0) * (r.occurrence || 0) * (r.detection || 0)
+                     }));
+                     onUpdate(rows);
+                 }
+            }
+        }
+      } catch (e) {
+        // Ignore parsing errors for partial content. 
+        // We expect errors while the JSON is incomplete.
+      }
+    }
+  } catch (error) {
+    console.error("Gemini FMEA Stream Failed:", error);
   }
 };

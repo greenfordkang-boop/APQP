@@ -1,19 +1,99 @@
 import { ProjectInfo, Task } from './types';
 
+// Single Project Mock (Used for Detail View)
 export const MOCK_PROJECT: ProjectInfo = {
+  id: "P-001",
   name: "JG 팝업모니터 & REAR COVER ASSY",
   partNo: "ACQ30063301",
-  client: "신성오토텍(주)",
+  client: "현대자동차",
   manager: "김민수 PM",
+  startDate: "2025-03-01",
+  endDate: "2026-12-31",
+  status: "Delayed",
+  progress: 35,
   milestones: [
-    { name: "T/OF (Tool Off)", date: "2025-07-15", color: "bg-blue-500" },
-    { name: "P1 (Pilot 1)", date: "2025-11-15", color: "bg-indigo-500" },
-    { name: "P2 (Pilot 2)", date: "2026-03-15", color: "bg-purple-500" },
-    { name: "선행양산", date: "2026-06-15", color: "bg-cyan-500" },
-    { name: "M (SOP)", date: "2026-07-15", color: "bg-slate-700" },
-    { name: "북미수출", date: "2026-12-01", color: "bg-orange-500" },
+    { name: "T/OF", date: "2025-07-15", color: "bg-blue-500" },
+    { name: "P1", date: "2025-11-15", color: "bg-indigo-500" },
+    { name: "P2", date: "2026-03-15", color: "bg-purple-500" },
+    { name: "SOP", date: "2026-07-15", color: "bg-slate-700" },
   ]
 };
+
+// Portfolio Mock Data (Multiple Projects)
+export const MOCK_ALL_PROJECTS: ProjectInfo[] = [
+  {
+    id: "P-001",
+    name: "JG 팝업모니터 & REAR COVER ASSY",
+    partNo: "ACQ30063301",
+    client: "현대자동차",
+    manager: "김민수 PM",
+    startDate: "2025-03-01",
+    endDate: "2026-12-31",
+    status: "Delayed",
+    progress: 35,
+    milestones: [
+      { name: "T/OF", date: "2025-07-15", color: "bg-blue-500" },
+      { name: "SOP", date: "2026-07-15", color: "bg-slate-700" },
+    ]
+  },
+  {
+    id: "P-002",
+    name: "EV6 ccNC 인포테인먼트 시스템",
+    partNo: "NCQ-9982",
+    client: "기아자동차",
+    manager: "이영희 PM",
+    startDate: "2025-01-15",
+    endDate: "2026-06-30",
+    status: "On Track",
+    progress: 45,
+    milestones: [
+      { name: "P1", date: "2025-08-20", color: "bg-indigo-500" },
+      { name: "SOP", date: "2026-02-10", color: "bg-slate-700" },
+    ]
+  },
+  {
+    id: "P-003",
+    name: "IONIQ 9 통합 제어기 (ICU)",
+    partNo: "H-ICU-003",
+    client: "현대자동차",
+    manager: "박철수 책임",
+    startDate: "2025-06-01",
+    endDate: "2027-02-28",
+    status: "On Track",
+    progress: 10,
+    milestones: [
+      { name: "T/OF", date: "2025-12-01", color: "bg-blue-500" },
+    ]
+  },
+  {
+    id: "P-004",
+    name: "Model Y Facelift Door Trim",
+    partNo: "TSL-DT-22",
+    client: "TESLA",
+    manager: "Sarah Kim",
+    startDate: "2024-11-01",
+    endDate: "2025-12-31",
+    status: "Critical",
+    progress: 60,
+    milestones: [
+      { name: "SOP", date: "2025-10-01", color: "bg-red-600" },
+    ]
+  },
+  {
+    id: "P-005",
+    name: "GM Bolt EV Battery Pack Housing",
+    partNo: "GM-BATT-05",
+    client: "GM",
+    manager: "정재훈 책임",
+    startDate: "2025-02-01",
+    endDate: "2026-08-31",
+    status: "Delayed",
+    progress: 20,
+    milestones: [
+      { name: "DV", date: "2025-09-15", color: "bg-orange-500" },
+    ]
+  }
+];
 
 export const MOCK_TASKS: Task[] = [
   // 1. 설계 및 시작검증 단계

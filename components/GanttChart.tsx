@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
-import { Task } from '../types';
+import { Task, Milestone } from '../types';
 import { getGridPosition, getDelayStatus, addDays } from '../utils';
-import { AlertCircle, Paperclip } from 'lucide-react';
+import { AlertCircle, Paperclip, Flag } from 'lucide-react';
 
 interface Props {
   tasks: Task[];
@@ -9,9 +9,17 @@ interface Props {
   totalDays?: number;
   onTaskClick?: (task: Task) => void;
   documentCounts?: Record<number, number>;
+  milestones?: Milestone[];
 }
 
-export const GanttChart: React.FC<Props> = ({ tasks, startDate, totalDays = 670, onTaskClick, documentCounts = {} }) => {
+export const GanttChart: React.FC<Props> = ({ 
+  tasks, 
+  startDate, 
+  totalDays = 670, 
+  onTaskClick, 
+  documentCounts = {},
+  milestones = []
+}) => {
   // Generate timeline headers (Years & Months)
   const timelineData = useMemo(() => {
     const months = [];
@@ -69,6 +77,26 @@ export const GanttChart: React.FC<Props> = ({ tasks, startDate, totalDays = 670,
     return groups;
   }, [tasks]);
 
+  // Calculate milestone positions
+  const milestoneLines = useMemo(() => {
+    if (!milestones) return [];
+    const start = new Date(startDate);
+    
+    return milestones.map(ms => {
+      const msDate = new Date(ms.date);
+      const diffTime = msDate.getTime() - start.getTime();
+      const days = diffTime / (1000 * 3600 * 24);
+      const left = (days / totalDays) * 100;
+      
+      // Convert bg-color to border/text color roughly
+      const colorClass = ms.color ? ms.color.replace('bg-', 'border-').replace('500', '400') : 'border-blue-400';
+      const textClass = ms.color ? ms.color.replace('bg-', 'text-').replace('500', '600') : 'text-blue-600';
+      const bgClass = ms.color ? ms.color.replace('bg-', 'bg-').replace('500', '50') : 'bg-blue-50';
+
+      return { ...ms, left, colorClass, textClass, bgClass };
+    }).filter(ms => ms.left >= 0 && ms.left <= 100);
+  }, [milestones, startDate, totalDays]);
+
   return (
     <div className="bg-white rounded-xl shadow border border-gray-200 overflow-hidden flex flex-col h-full">
       {/* Header Row */}
@@ -114,10 +142,30 @@ export const GanttChart: React.FC<Props> = ({ tasks, startDate, totalDays = 670,
       </div>
 
       {/* Body */}
-      <div className="overflow-y-auto overflow-x-auto gantt-scroll flex-grow">
-        <div className="min-w-[800px + 16rem]"> {/* Ensure horizontal scroll if tight */}
+      <div className="overflow-y-auto overflow-x-auto gantt-scroll flex-grow relative">
+        <div className="min-w-[800px + 16rem] relative"> {/* Ensure horizontal scroll if tight */}
+          
+          {/* Milestone Vertical Lines Overlay (Pointer events none to allow clicking tasks underneath) */}
+          <div className="absolute inset-0 pointer-events-none z-10 pl-64 h-full">
+             <div className="relative w-full h-full">
+                {milestoneLines.map((ms, idx) => (
+                  <div 
+                    key={idx}
+                    className={`absolute top-0 bottom-0 border-l-2 border-dashed opacity-60 flex flex-col items-center ${ms.colorClass}`}
+                    style={{ left: `${ms.left}%` }}
+                  >
+                     {/* Milestone Label Badge */}
+                     <div className={`mt-2 px-1.5 py-0.5 rounded text-[10px] font-bold shadow-sm whitespace-nowrap z-20 flex items-center space-x-1 ${ms.bgClass} ${ms.textClass} border ${ms.colorClass} border-solid`}>
+                        <Flag size={8} className="fill-current" />
+                        <span>{ms.name}</span>
+                     </div>
+                  </div>
+                ))}
+             </div>
+          </div>
+
           {Object.entries(groupedTasks).map(([phaseName, phaseTasks]: [string, Task[]]) => (
-            <div key={phaseName} className="border-b border-gray-100 last:border-0">
+            <div key={phaseName} className="border-b border-gray-100 last:border-0 relative z-0">
               {/* Phase Header */}
               <div className="bg-blue-50/50 px-4 py-1.5 text-xs font-bold text-blue-800 sticky left-0 z-10 w-full border-y border-blue-100">
                 {phaseName}
@@ -148,7 +196,7 @@ export const GanttChart: React.FC<Props> = ({ tasks, startDate, totalDays = 670,
                     onClick={() => onTaskClick?.(task)}
                   >
                     {/* Task Info Column */}
-                    <div className="w-64 flex-shrink-0 p-3 border-r border-gray-200 flex flex-col justify-center sticky left-0 bg-white group-hover:bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                    <div className="w-64 flex-shrink-0 p-3 border-r border-gray-200 flex flex-col justify-center sticky left-0 bg-white group-hover:bg-gray-50 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium text-gray-700 truncate mr-2 group-hover:text-blue-600 transition-colors" title={task.name}>{task.name}</span>
                         {isDelayed === 'delayed' && (
@@ -180,12 +228,12 @@ export const GanttChart: React.FC<Props> = ({ tasks, startDate, totalDays = 670,
                     </div>
 
                     {/* Timeline Column */}
-                    <div className="flex-grow relative py-2 bg-white group-hover:bg-gray-50">
+                    <div className="flex-grow relative py-2 bg-transparent">
                        {/* Grid Lines (Vertical Month Lines) */}
                        {timelineData.months.map((m, idx) => (
                         <div 
                           key={idx} 
-                          className="absolute top-0 bottom-0 border-r border-dashed border-gray-100"
+                          className="absolute top-0 bottom-0 border-r border-dashed border-gray-100 -z-10"
                           style={{ left: `${m.left}%` }}
                         />
                       ))}
