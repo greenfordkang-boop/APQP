@@ -5,20 +5,52 @@ import { TaskDocument, FmeaRow, FmeaData } from '../types';
 const MOCK_STORAGE_KEY = 'mock_task_documents';
 const MOCK_FMEA_DATA_KEY = 'mock_fmea_data_';
 
+// File upload security settings
+const ALLOWED_MIME_TYPES = [
+  'application/pdf',
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'text/csv',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/json',
+  'text/plain'
+];
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
 // Helper to simulate network delay for mock mode
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Helper to convert File to Base64 (for Mock Preview)
-const fileToBase64 = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = error => reject(error);
-  });
+// Validate file before upload
+const validateFile = (file: File): { valid: boolean; error?: string } => {
+  if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+    return {
+      valid: false,
+      error: `지원하지 않는 파일 형식입니다. 허용된 형식: PDF, 이미지(JPG, PNG, GIF, WEBP), Excel, CSV, JSON, TXT`
+    };
+  }
+
+  if (file.size > MAX_FILE_SIZE) {
+    return {
+      valid: false,
+      error: `파일 크기는 ${MAX_FILE_SIZE / 1024 / 1024}MB를 초과할 수 없습니다. (현재: ${(file.size / 1024 / 1024).toFixed(2)}MB)`
+    };
+  }
+
+  return { valid: true };
 };
 
 export const uploadDocument = async (taskId: number, file: File): Promise<TaskDocument | null> => {
+  // Validate file first
+  const validation = validateFile(file);
+  if (!validation.valid) {
+    alert(validation.error);
+    return null;
+  }
   if (isSupabaseConfigured()) {
     try {
       // 1. Upload to Storage Bucket 'project-files'
@@ -61,27 +93,22 @@ export const uploadDocument = async (taskId: number, file: File): Promise<TaskDo
       return null;
     }
   } else {
-    // --- Mock Implementation (LocalStorage) ---
+    // --- Mock Implementation (LocalStorage with Base64 for preview) ---
     await delay(800);
-    
-    // Convert file to Base64 to allow preview in mock mode
-    // Note: LocalStorage has a size limit (usually 5MB). Large files might fail in this demo.
-    let fileUrl = '#';
-    try {
-        if (file.size < 2 * 1024 * 1024) { // Only store if < 2MB to prevent LS quota exceeded
-            fileUrl = await fileToBase64(file);
-        } else {
-            console.warn('File too large for mock storage preview');
-        }
-    } catch (e) {
-        console.error('Failed to convert file for preview', e);
-    }
+
+    // Convert file to Base64 for preview support in mock mode
+    const fileDataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
 
     const mockDoc: TaskDocument = {
       id: Math.random().toString(36).substr(2, 9),
       task_id: taskId,
       name: file.name,
-      url: fileUrl, 
+      url: fileDataUrl, // Store as data URL for preview
       size: file.size,
       type: file.type,
       created_at: new Date().toISOString(),
@@ -154,7 +181,8 @@ export const loadFmeaData = async (doc: TaskDocument): Promise<FmeaData | null> 
   if (Array.isArray(rawData)) {
     return {
       rows: rawData as FmeaRow[],
-      history: []
+      revisions: [],
+      version: 1
     };
   } else {
     return rawData as FmeaData;

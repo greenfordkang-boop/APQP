@@ -2,344 +2,312 @@ import React, { useState, useEffect } from 'react';
 import { ProjectInfo, Milestone } from '../types';
 import { X, Save, Plus, Trash2, Calendar, Flag } from 'lucide-react';
 
-interface Props {
-  project?: ProjectInfo | null; // Optional: null means "Create New"
-  isOpen: boolean;
+interface ProjectEditModalProps {
+  project?: ProjectInfo;
   onClose: () => void;
-  onSave: (updatedProject: ProjectInfo) => void;
-  onDelete?: (projectId: string) => void;
+  onSave: (project: ProjectInfo) => void;
+  onDelete?: (projectId: number) => void;
 }
 
-const DEFAULT_PROJECT: ProjectInfo = {
-  id: '',
-  name: '',
-  partNo: '',
-  client: '',
-  manager: '',
-  startDate: new Date().toISOString().split('T')[0],
-  endDate: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0],
-  status: 'On Track',
-  progress: 0,
-  milestones: []
-};
-
-const COLORS = [
-  { label: 'Blue', value: 'bg-blue-500' },
-  { label: 'Indigo', value: 'bg-indigo-500' },
-  { label: 'Purple', value: 'bg-purple-500' },
-  { label: 'Red', value: 'bg-red-600' },
-  { label: 'Slate', value: 'bg-slate-700' },
-  { label: 'Orange', value: 'bg-orange-500' },
-];
-
-export const ProjectEditModal: React.FC<Props> = ({ project, isOpen, onClose, onSave, onDelete }) => {
-  const [formData, setFormData] = useState<ProjectInfo>(DEFAULT_PROJECT);
+export const ProjectEditModal: React.FC<ProjectEditModalProps> = ({
+  project,
+  onClose,
+  onSave,
+  onDelete
+}) => {
   const isEditMode = !!project;
 
-  useEffect(() => {
-    if (isOpen) {
-      if (project) {
-        setFormData({ ...project });
-      } else {
-        setFormData({
-          ...DEFAULT_PROJECT,
-          id: `P-${Date.now()}`, // Temporary ID generation
-          startDate: new Date().toISOString().split('T')[0],
-          endDate: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0]
-        });
-      }
-    }
-  }, [isOpen, project]);
+  const [formData, setFormData] = useState<ProjectInfo>({
+    id: project?.id,
+    name: project?.name || '',
+    partNo: project?.partNo || '',
+    client: project?.client || '',
+    manager: project?.manager || '',
+    startDate: project?.startDate || new Date().toISOString().split('T')[0],
+    endDate: project?.endDate || '',
+    status: project?.status || 'Planning',
+    progress: project?.progress || 0,
+    milestones: project?.milestones || []
+  });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ 
-      ...prev, 
-      [name]: name === 'progress' ? parseInt(value) || 0 : value 
-    }));
+  const handleChange = (field: keyof ProjectInfo, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  // Milestone Handlers
-  const handleMilestoneChange = (index: number, field: keyof Milestone, value: string) => {
-    const newMilestones = [...formData.milestones];
-    newMilestones[index] = { ...newMilestones[index], [field]: value };
-    setFormData(prev => ({ ...prev, milestones: newMilestones }));
-  };
-
-  const addMilestone = () => {
+  const handleAddMilestone = () => {
+    const newMilestone: Milestone = {
+      name: '',
+      date: new Date().toISOString().split('T')[0],
+      color: 'bg-blue-500'
+    };
     setFormData(prev => ({
       ...prev,
-      milestones: [...prev.milestones, { name: '', date: '', color: 'bg-blue-500' }]
+      milestones: [...(prev.milestones || []), newMilestone]
     }));
   };
 
-  const removeMilestone = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      milestones: prev.milestones.filter((_, i) => i !== index)
-    }));
+  const handleUpdateMilestone = (index: number, field: keyof Milestone, value: string) => {
+    const updatedMilestones = [...(formData.milestones || [])];
+    updatedMilestones[index] = { ...updatedMilestones[index], [field]: value };
+    setFormData(prev => ({ ...prev, milestones: updatedMilestones }));
+  };
+
+  const handleRemoveMilestone = (index: number) => {
+    const updatedMilestones = (formData.milestones || []).filter((_, i) => i !== index);
+    setFormData(prev => ({ ...prev, milestones: updatedMilestones }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validation
+    if (!formData.name || !formData.client) {
+      alert('프로젝트명과 고객사는 필수 입력 항목입니다.');
+      return;
+    }
+
     onSave(formData);
-    onClose();
   };
 
   const handleDelete = () => {
-    if (project && onDelete) {
-      if (confirm(`'${project.name}' 프로젝트를 정말 삭제하시겠습니까?\n삭제된 데이터는 복구할 수 없습니다.`)) {
-        onDelete(project.id);
-        onClose();
-      }
+    if (!project?.id) return;
+
+    if (confirm(`"${project.name}" 프로젝트를 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.`)) {
+      onDelete?.(project.id);
+      onClose();
     }
   };
 
-  if (!isOpen) return null;
+  const colorOptions = [
+    { value: 'bg-blue-500', label: '파랑' },
+    { value: 'bg-indigo-500', label: '인디고' },
+    { value: 'bg-purple-500', label: '보라' },
+    { value: 'bg-pink-500', label: '핑크' },
+    { value: 'bg-red-500', label: '빨강' },
+    { value: 'bg-orange-500', label: '주황' },
+    { value: 'bg-yellow-500', label: '노랑' },
+    { value: 'bg-green-500', label: '초록' },
+    { value: 'bg-teal-500', label: '청록' },
+    { value: 'bg-cyan-500', label: '시안' },
+    { value: 'bg-slate-700', label: '슬레이트' },
+    { value: 'bg-gray-500', label: '회색' }
+  ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="bg-gray-50 border-b border-gray-100 p-4 flex justify-between items-center flex-shrink-0">
-          <h2 className="text-lg font-bold text-gray-800">
-            {isEditMode ? '프로젝트 정보 수정' : '신규 프로젝트 등록'}
+        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
+          <h2 className="text-xl font-bold text-gray-900">
+            {isEditMode ? '프로젝트 수정' : '새 프로젝트 등록'}
           </h2>
-          <button onClick={onClose} className="p-1 hover:bg-gray-200 rounded-full transition-colors">
-            <X size={20} className="text-gray-500" />
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X size={24} />
           </button>
         </div>
-        
-        {/* Scrollable Form Body */}
-        <div className="overflow-y-auto p-6">
-          <form id="projectForm" onSubmit={handleSubmit} className="space-y-6">
-            
-            {/* 1. Basic Info Section */}
-            <div>
-              <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center">
-                <span className="w-1 h-4 bg-blue-600 mr-2 rounded-full"></span>
-                기본 정보
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">고객사</label>
-                  <input
-                    type="text"
-                    name="client"
-                    value={formData.client}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                    placeholder="예: 현대자동차"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">담당자 (PM)</label>
-                  <input
-                    type="text"
-                    name="manager"
-                    value={formData.manager}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                    placeholder="예: 홍길동 책임"
-                    required
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">프로젝트명 (품명)</label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                    placeholder="예: JG 팝업모니터"
-                    required
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">PART NO</label>
-                  <input
-                    type="text"
-                    name="partNo"
-                    value={formData.partNo}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                    placeholder="예: ACQ30063301"
-                    required
-                  />
-                </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {/* Basic Information */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">기본 정보</h3>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  프로젝트명 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => handleChange('name', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">품번 (Part No.)</label>
+                <input
+                  type="text"
+                  value={formData.partNo}
+                  onChange={(e) => handleChange('partNo', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  고객사 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.client}
+                  onChange={(e) => handleChange('client', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">담당자</label>
+                <input
+                  type="text"
+                  value={formData.manager}
+                  onChange={(e) => handleChange('manager', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
               </div>
             </div>
+          </div>
 
-            <hr className="border-gray-100" />
+          {/* Schedule Information */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide flex items-center">
+              <Calendar size={16} className="mr-2" />
+              일정 정보
+            </h3>
 
-            {/* 2. Schedule & Status Section */}
-            <div>
-              <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center">
-                <span className="w-1 h-4 bg-green-600 mr-2 rounded-full"></span>
-                일정 및 상태
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">시작일 (SOP - N개월)</label>
-                  <div className="relative">
-                    <input
-                      type="date"
-                      name="startDate"
-                      value={formData.startDate}
-                      onChange={handleChange}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                      required
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">종료일 (SOP + 3개월)</label>
-                  <div className="relative">
-                    <input
-                      type="date"
-                      name="endDate"
-                      value={formData.endDate}
-                      onChange={handleChange}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                      required
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">프로젝트 상태</label>
-                  <select
-                    name="status"
-                    value={formData.status}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                  >
-                    <option value="On Track">On Track (정상)</option>
-                    <option value="Delayed">Delayed (지연)</option>
-                    <option value="Critical">Critical (위험)</option>
-                    <option value="Completed">Completed (완료)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">진척률 ({formData.progress}%)</label>
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="range"
-                      name="progress"
-                      min="0"
-                      max="100"
-                      value={formData.progress}
-                      onChange={handleChange}
-                      className="flex-grow h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                    />
-                  </div>
-                </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">시작일</label>
+                <input
+                  type="date"
+                  value={formData.startDate}
+                  onChange={(e) => handleChange('startDate', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
               </div>
-            </div>
 
-            <hr className="border-gray-100" />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">종료일</label>
+                <input
+                  type="date"
+                  value={formData.endDate}
+                  onChange={(e) => handleChange('endDate', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
 
-            {/* 3. Milestones Section */}
-            <div>
-              <div className="flex justify-between items-center mb-3">
-                <h3 className="text-sm font-bold text-gray-900 flex items-center">
-                  <span className="w-1 h-4 bg-purple-600 mr-2 rounded-full"></span>
-                  주요 마일스톤 (Key Events)
-                </h3>
-                <button
-                  type="button"
-                  onClick={addMilestone}
-                  className="text-xs flex items-center text-blue-600 hover:text-blue-800 font-medium"
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">상태</label>
+                <select
+                  value={formData.status}
+                  onChange={(e) => handleChange('status', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <Plus size={14} className="mr-1" />
-                  추가
-                </button>
+                  <option value="Planning">Planning</option>
+                  <option value="In Progress">In Progress</option>
+                  <option value="On Hold">On Hold</option>
+                  <option value="Completed">Completed</option>
+                </select>
               </div>
-              
-              <div className="space-y-3 bg-gray-50 p-3 rounded-lg border border-gray-100">
-                {formData.milestones.length === 0 && (
-                  <p className="text-xs text-gray-400 text-center py-2">등록된 마일스톤이 없습니다.</p>
-                )}
-                {formData.milestones.map((ms, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <div className="flex-grow grid grid-cols-12 gap-2">
-                      <div className="col-span-3">
-                        <input
-                          type="text"
-                          placeholder="이벤트명"
-                          value={ms.name}
-                          onChange={(e) => handleMilestoneChange(idx, 'name', e.target.value)}
-                          className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 outline-none"
-                        />
-                      </div>
-                      <div className="col-span-4">
-                        <input
-                          type="date"
-                          value={ms.date}
-                          onChange={(e) => handleMilestoneChange(idx, 'date', e.target.value)}
-                          className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 outline-none"
-                        />
-                      </div>
-                      <div className="col-span-5">
-                         <select
-                           value={ms.color}
-                           onChange={(e) => handleMilestoneChange(idx, 'color', e.target.value)}
-                           className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 outline-none"
-                         >
-                            {COLORS.map(c => (
-                              <option key={c.value} value={c.value}>{c.label}</option>
-                            ))}
-                         </select>
-                      </div>
-                    </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">진척률 (%)</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={formData.progress}
+                  onChange={(e) => handleChange('progress', parseInt(e.target.value) || 0)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Milestones */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide flex items-center">
+                <Flag size={16} className="mr-2" />
+                마일스톤
+              </h3>
+              <button
+                type="button"
+                onClick={handleAddMilestone}
+                className="text-sm text-blue-600 hover:text-blue-700 flex items-center space-x-1"
+              >
+                <Plus size={16} />
+                <span>추가</span>
+              </button>
+            </div>
+
+            {formData.milestones && formData.milestones.length > 0 ? (
+              <div className="space-y-2">
+                {formData.milestones.map((milestone, index) => (
+                  <div key={index} className="flex items-center space-x-2 p-3 bg-gray-50 rounded-md">
+                    <input
+                      type="text"
+                      placeholder="마일스톤명"
+                      value={milestone.name}
+                      onChange={(e) => handleUpdateMilestone(index, 'name', e.target.value)}
+                      className="flex-grow px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <input
+                      type="date"
+                      value={milestone.date}
+                      onChange={(e) => handleUpdateMilestone(index, 'date', e.target.value)}
+                      className="w-40 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <select
+                      value={milestone.color}
+                      onChange={(e) => handleUpdateMilestone(index, 'color', e.target.value)}
+                      className="w-32 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      {colorOptions.map(option => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
                     <button
                       type="button"
-                      onClick={() => removeMilestone(idx)}
-                      className="text-gray-400 hover:text-red-500 p-1"
+                      onClick={() => handleRemoveMilestone(index)}
+                      className="text-red-500 hover:text-red-700 p-2"
                     >
                       <Trash2 size={16} />
                     </button>
                   </div>
                 ))}
               </div>
-            </div>
+            ) : (
+              <p className="text-sm text-gray-500 italic">마일스톤이 없습니다. 추가 버튼을 클릭하세요.</p>
+            )}
+          </div>
 
-          </form>
-        </div>
-
-        {/* Footer */}
-        <div className="bg-gray-50 border-t border-gray-100 p-4 flex justify-between items-center flex-shrink-0">
-          <div>
-            {isEditMode && onDelete && (
+          {/* Footer */}
+          <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+            {isEditMode && onDelete ? (
               <button
                 type="button"
                 onClick={handleDelete}
-                className="flex items-center px-3 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 border border-transparent rounded-lg transition-colors"
+                className="flex items-center space-x-2 px-4 py-2 bg-red-50 text-red-600 rounded-md hover:bg-red-100 transition-colors"
               >
-                <Trash2 size={16} className="mr-1.5" />
-                삭제
+                <Trash2 size={16} />
+                <span>프로젝트 삭제</span>
               </button>
+            ) : (
+              <div></div>
             )}
+
+            <div className="flex space-x-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+              >
+                취소
+              </button>
+              <button
+                type="submit"
+                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                <Save size={16} />
+                <span>{isEditMode ? '수정' : '등록'}</span>
+              </button>
+            </div>
           </div>
-          <div className="flex space-x-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              취소
-            </button>
-            <button
-              type="submit"
-              form="projectForm"
-              className="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
-            >
-              <Save size={16} className="mr-2" />
-              {isEditMode ? '변경사항 저장' : '프로젝트 등록'}
-            </button>
-          </div>
-        </div>
+        </form>
       </div>
     </div>
   );

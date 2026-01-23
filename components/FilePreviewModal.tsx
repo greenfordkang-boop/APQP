@@ -1,143 +1,235 @@
-
 import React, { useState, useEffect } from 'react';
 import { TaskDocument } from '../types';
-import { X, Download, FileText, Image as ImageIcon, AlertCircle } from 'lucide-react';
+import { X, Download, FileText, Image as ImageIcon, File } from 'lucide-react';
 
-interface Props {
-  file: TaskDocument;
-  isOpen: boolean;
+interface FilePreviewModalProps {
+  document: TaskDocument;
   onClose: () => void;
 }
 
-export const FilePreviewModal: React.FC<Props> = ({ file, isOpen, onClose }) => {
-  const [content, setContent] = useState<string | null>(null);
-  const [fileType, setFileType] = useState<'image' | 'pdf' | 'text' | 'other'>('other');
+export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ document, onClose }) => {
+  const [previewContent, setPreviewContent] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string>('');
 
   useEffect(() => {
-    if (isOpen && file) {
-      determineTypeAndContent();
-    }
-  }, [isOpen, file]);
+    loadPreview();
+  }, [document]);
 
-  const determineTypeAndContent = async () => {
-    const ext = file.name.split('.').pop()?.toLowerCase() || '';
-    const mime = file.type || '';
+  const loadPreview = async () => {
+    setIsLoading(true);
+    setError('');
 
-    // 1. Images
-    if (mime.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
-      setFileType('image');
-      setContent(file.url);
-      return;
-    }
+    try {
+      // If URL is a data URI (base64), use it directly
+      if (document.url.startsWith('data:')) {
+        setPreviewContent(document.url);
+        setIsLoading(false);
+        return;
+      }
 
-    // 2. PDF
-    if (mime === 'application/pdf' || ext === 'pdf') {
-      setFileType('pdf');
-      setContent(file.url);
-      return;
-    }
+      // Otherwise try to fetch (for Supabase URLs)
+      if (document.url !== '#') {
+        const response = await fetch(document.url);
+        if (!response.ok) throw new Error('파일 로드 실패');
 
-    // 3. Text / CSV / JSON
-    if (mime.startsWith('text/') || mime.includes('json') || ['txt', 'csv', 'json', 'md'].includes(ext)) {
-      setFileType('text');
-      // If it's a Data URL, decode it
-      if (file.url.startsWith('data:')) {
-        try {
-          const base64 = file.url.split(',')[1];
-          // Handle UTF-8 decoding properly
-          const decoded = decodeURIComponent(atob(base64).split('').map(function(c) {
-            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-          }).join(''));
-          setContent(decoded);
-        } catch (e) {
-          setContent("텍스트 미리보기를 불러올 수 없습니다.");
+        const blob = await response.blob();
+        const reader = new FileReader();
+
+        reader.onload = () => {
+          setPreviewContent(reader.result as string);
+          setIsLoading(false);
+        };
+
+        reader.onerror = () => {
+          setError('파일 읽기 실패');
+          setIsLoading(false);
+        };
+
+        // Read based on file type
+        if (document.type?.startsWith('text/') || document.type === 'application/json') {
+          reader.readAsText(blob);
+        } else {
+          reader.readAsDataURL(blob);
         }
       } else {
-        // If it's a real URL (Supabase), try to fetch it
-        try {
-            const res = await fetch(file.url);
-            const text = await res.text();
-            setContent(text);
-        } catch (e) {
-            setContent("파일 내용을 불러오는데 실패했습니다 (CORS 또는 접근 권한 문제일 수 있습니다).");
-        }
+        setError('미리보기를 지원하지 않습니다. (Mock 모드)');
+        setIsLoading(false);
       }
+    } catch (err) {
+      setError('파일 로드 중 오류가 발생했습니다.');
+      setIsLoading(false);
+    }
+  };
+
+  const handleDownload = () => {
+    if (document.url === '#' || !document.url) {
+      alert('Mock 모드에서는 다운로드할 수 없습니다.');
       return;
     }
 
-    setFileType('other');
+    const link = document.createElement('a');
+    link.href = previewContent || document.url;
+    link.download = document.name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
-  if (!isOpen) return null;
+  const renderPreview = () => {
+    if (isLoading) {
+      return (
+        <div className="flex items-center justify-center h-full">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
+      );
+    }
+
+    if (error) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full text-gray-500 space-y-4">
+          <File size={64} className="text-gray-300" />
+          <p className="text-sm">{error}</p>
+          {document.url !== '#' && (
+            <button
+              onClick={handleDownload}
+              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            >
+              <Download size={16} />
+              <span>다운로드</span>
+            </button>
+          )}
+        </div>
+      );
+    }
+
+    const fileType = document.type || '';
+
+    // Image files
+    if (fileType.startsWith('image/')) {
+      return (
+        <div className="flex items-center justify-center h-full p-4">
+          <img
+            src={previewContent}
+            alt={document.name}
+            className="max-w-full max-h-full object-contain rounded shadow-lg"
+          />
+        </div>
+      );
+    }
+
+    // PDF files
+    if (fileType === 'application/pdf') {
+      return (
+        <iframe
+          src={previewContent}
+          className="w-full h-full border-0"
+          title={document.name}
+        />
+      );
+    }
+
+    // Text files (CSV, TXT, JSON)
+    if (
+      fileType.startsWith('text/') ||
+      fileType === 'application/json' ||
+      fileType === 'text/csv'
+    ) {
+      return (
+        <div className="h-full overflow-auto p-4 bg-gray-50">
+          <pre className="text-xs font-mono whitespace-pre-wrap break-words bg-white p-4 rounded border border-gray-200">
+            {previewContent}
+          </pre>
+        </div>
+      );
+    }
+
+    // Excel files - show info (can't preview directly in browser)
+    if (
+      fileType === 'application/vnd.ms-excel' ||
+      fileType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    ) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full text-gray-500 space-y-4">
+          <FileText size={64} className="text-green-500" />
+          <p className="text-sm">Excel 파일은 미리보기를 지원하지 않습니다.</p>
+          <button
+            onClick={handleDownload}
+            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          >
+            <Download size={16} />
+            <span>다운로드하여 열기</span>
+          </button>
+        </div>
+      );
+    }
+
+    // Unsupported file type
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-gray-500 space-y-4">
+        <File size={64} className="text-gray-300" />
+        <p className="text-sm">이 파일 형식은 미리보기를 지원하지 않습니다.</p>
+        <p className="text-xs text-gray-400">{fileType || '알 수 없는 형식'}</p>
+        <button
+          onClick={handleDownload}
+          className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+        >
+          <Download size={16} />
+          <span>다운로드</span>
+        </button>
+      </div>
+    );
+  };
+
+  const getFileIcon = () => {
+    const type = document.type || '';
+    if (type.startsWith('image/')) return <ImageIcon size={20} className="text-blue-600" />;
+    if (type === 'application/pdf') return <FileText size={20} className="text-red-600" />;
+    if (type.startsWith('text/')) return <FileText size={20} className="text-gray-600" />;
+    return <File size={20} className="text-gray-600" />;
+  };
+
+  const formatFileSize = (bytes?: number) => {
+    if (!bytes) return 'N/A';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="bg-gray-900 text-white p-4 flex justify-between items-center flex-shrink-0">
-          <div className="flex items-center space-x-3 overflow-hidden">
-            <div className="p-2 bg-gray-700 rounded-lg">
-                {fileType === 'image' ? <ImageIcon size={20} /> : <FileText size={20} />}
-            </div>
-            <div>
-               <h3 className="font-bold truncate max-w-md">{file.name}</h3>
-               <p className="text-xs text-gray-400">
-                 {file.size ? (file.size / 1024).toFixed(1) + ' KB' : 'Size unknown'}
-               </p>
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center space-x-3 flex-grow min-w-0">
+            {getFileIcon()}
+            <div className="flex-grow min-w-0">
+              <h2 className="text-lg font-semibold text-gray-900 truncate">{document.name}</h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {formatFileSize(document.size)} • {new Date(document.created_at).toLocaleString('ko-KR')}
+              </p>
             </div>
           </div>
-          <div className="flex items-center space-x-3">
-             <a 
-               href={file.url} 
-               download={file.name}
-               className="flex items-center space-x-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded text-sm transition-colors"
-             >
-               <Download size={16} />
-               <span>다운로드</span>
-             </a>
-             <button onClick={onClose} className="p-2 hover:bg-white/20 rounded-full transition-colors">
-               <X size={24} />
-             </button>
+
+          <div className="flex items-center space-x-2 flex-shrink-0 ml-4">
+            {!error && document.url !== '#' && (
+              <button
+                onClick={handleDownload}
+                className="flex items-center space-x-2 px-3 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
+              >
+                <Download size={16} />
+                <span>다운로드</span>
+              </button>
+            )}
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-2">
+              <X size={24} />
+            </button>
           </div>
         </div>
 
-        {/* Content Body */}
-        <div className="flex-grow bg-gray-100 flex items-center justify-center overflow-auto relative p-4">
-           {fileType === 'image' && content && (
-             <img src={content} alt="Preview" className="max-w-full max-h-full object-contain shadow-lg" />
-           )}
-
-           {fileType === 'pdf' && content && (
-             <iframe 
-               src={content} 
-               className="w-full h-full rounded-lg shadow-sm bg-white" 
-               title="PDF Preview"
-             />
-           )}
-
-           {fileType === 'text' && content && (
-             <div className="w-full h-full bg-white p-8 rounded-lg shadow-sm overflow-auto">
-                <pre className="text-xs sm:text-sm font-mono whitespace-pre-wrap text-gray-700">{content}</pre>
-             </div>
-           )}
-
-           {fileType === 'other' && (
-             <div className="text-center p-10 bg-white rounded-xl shadow-sm border border-gray-200">
-                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                   <AlertCircle size={32} className="text-gray-400" />
-                </div>
-                <h4 className="text-lg font-bold text-gray-800 mb-2">미리보기를 지원하지 않는 형식입니다.</h4>
-                <p className="text-gray-500 mb-6">파일을 다운로드하여 내용을 확인해주세요.</p>
-                <a 
-                   href={file.url} 
-                   download={file.name}
-                   className="inline-flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium transition-colors"
-                >
-                   <Download size={18} />
-                   <span>파일 다운로드</span>
-                </a>
-             </div>
-           )}
+        {/* Preview Area */}
+        <div className="flex-grow overflow-hidden bg-gray-100">
+          {renderPreview()}
         </div>
       </div>
     </div>

@@ -23,15 +23,15 @@ export interface Milestone {
 }
 
 export interface ProjectInfo {
-  id: string; // Added for routing
+  id?: number;
   name: string;
   partNo: string;
   client: string;
   manager: string;
-  startDate: string; // Added for portfolio Gantt
-  endDate: string;   // Added for portfolio Gantt
-  status: 'On Track' | 'Delayed' | 'Critical' | 'Completed'; // Overall status
-  progress: number; // 0-100
+  startDate?: string;
+  endDate?: string;
+  status?: 'Planning' | 'In Progress' | 'On Hold' | 'Completed' | 'On Track' | 'Delayed' | 'Critical';
+  progress?: number;
   milestones: Milestone[];
 }
 
@@ -53,27 +53,32 @@ export interface AIAnalysisResult {
 }
 
 export interface FmeaRow {
-  processStep: string;      // 공정 단계/기능
-  failureMode: string;      // 잠재적 고장 모드
-  failureEffect: string;    // 고장 영향
-  severity: number;         // 심각도 (S)
-  failureCause: string;     // 잠재적 원인
-  occurrence: number;       // 발생도 (O)
-  controls: string;         // 현행 공정 관리 (예방/검출)
-  detection: number;        // 검출도 (D)
-  rpn: number;              // 위험우선순위수 (Auto calc)
-  action: string;           // 권고 조치 사항
+  id?: string;
+  processStep: string;
+  function: string;
+  failureMode: string;
+  effects: string;
+  severity: number;
+  causes: string;
+  occurrence: number;
+  controls: string;
+  detection: number;
+  rpn: number;
+  actions: string;
+  responsibility: string;
+  targetDate: string;
 }
 
 export interface FmeaRevision {
-  id: string;
-  date: string;
   version: number;
-  changeLog: string;
-  editor?: string;
+  timestamp: string;
+  user: string;
+  changes: string;
 }
 
 export interface FmeaData {
   rows: FmeaRow[];
-  history: FmeaRevision[];
+  revisions: FmeaRevision[];
+  version: number;
+  lastModified?: string;
 }
