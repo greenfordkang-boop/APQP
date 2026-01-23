@@ -91,6 +91,38 @@ export const PortfolioGantt: React.FC<PortfolioGanttProps> = ({
           </div>
         </div>
         <div className="flex-grow relative">
+          {/* Year Headers */}
+          <div className="flex border-b border-gray-200 bg-gray-50">
+            {(() => {
+              const yearGroups: { year: number; startIdx: number; totalDays: number }[] = [];
+              let currentYear = months[0]?.year;
+              let startIdx = 0;
+              let totalDaysInYear = 0;
+
+              months.forEach((m, idx) => {
+                if (m.year !== currentYear) {
+                  yearGroups.push({ year: currentYear, startIdx, totalDays: totalDaysInYear });
+                  currentYear = m.year;
+                  startIdx = idx;
+                  totalDaysInYear = m.days;
+                } else {
+                  totalDaysInYear += m.days;
+                }
+              });
+              yearGroups.push({ year: currentYear, startIdx, totalDays: totalDaysInYear });
+
+              return yearGroups.map((yg, idx) => (
+                <div
+                  key={idx}
+                  className="border-r border-gray-300 py-1 text-center font-bold text-gray-700"
+                  style={{ width: `${(yg.totalDays / totalDays) * 100}%` }}
+                >
+                  {yg.year}년
+                </div>
+              ));
+            })()}
+          </div>
+          {/* Month Headers */}
           <div className="flex text-xs border-b border-gray-200">
             {months.map((m, idx) => (
               <div
@@ -98,7 +130,7 @@ export const PortfolioGantt: React.FC<PortfolioGanttProps> = ({
                 className="border-r border-gray-200 py-2 text-center font-medium text-gray-600"
                 style={{ width: `${(m.days / totalDays) * 100}%` }}
               >
-                {m.year}년 {m.month + 1}월
+                {m.month + 1}월
               </div>
             ))}
           </div>
