@@ -5,7 +5,8 @@ describe('Utils', () => {
   describe('formatDate', () => {
     it('should format date correctly', () => {
       const result = formatDate('2025-03-15');
-      expect(result).toMatch(/2025/);
+      expect(result).toContain('3월');
+      expect(result).toContain('15');
     });
   });
 
@@ -25,7 +26,7 @@ describe('Utils', () => {
 
     it('should detect on-track status', () => {
       const result = getDelayStatus('2025-01-10', '2025-01-05');
-      expect(result).toBe('on-time');
+      expect(result).toBe('ontime');
     });
   });
 });
