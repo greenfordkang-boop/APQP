@@ -2,7 +2,7 @@ import { ProjectInfo, Task } from './types';
 
 // Single Project Mock (Used for Detail View)
 export const MOCK_PROJECT: ProjectInfo = {
-  id: "P-001",
+  id: 1,
   name: "JG 팝업모니터 & REAR COVER ASSY",
   partNo: "ACQ30063301",
   client: "현대자동차",
@@ -22,7 +22,7 @@ export const MOCK_PROJECT: ProjectInfo = {
 // Portfolio Mock Data (Multiple Projects)
 export const MOCK_ALL_PROJECTS: ProjectInfo[] = [
   {
-    id: "P-001",
+    id: 1,
     name: "JG 팝업모니터 & REAR COVER ASSY",
     partNo: "ACQ30063301",
     client: "현대자동차",
@@ -37,7 +37,7 @@ export const MOCK_ALL_PROJECTS: ProjectInfo[] = [
     ]
   },
   {
-    id: "P-002",
+    id: 2,
     name: "EV6 ccNC 인포테인먼트 시스템",
     partNo: "NCQ-9982",
     client: "기아자동차",
@@ -52,7 +52,7 @@ export const MOCK_ALL_PROJECTS: ProjectInfo[] = [
     ]
   },
   {
-    id: "P-003",
+    id: 3,
     name: "IONIQ 9 통합 제어기 (ICU)",
     partNo: "H-ICU-003",
     client: "현대자동차",
@@ -66,7 +66,7 @@ export const MOCK_ALL_PROJECTS: ProjectInfo[] = [
     ]
   },
   {
-    id: "P-004",
+    id: 4,
     name: "Model Y Facelift Door Trim",
     partNo: "TSL-DT-22",
     client: "TESLA",
@@ -80,7 +80,7 @@ export const MOCK_ALL_PROJECTS: ProjectInfo[] = [
     ]
   },
   {
-    id: "P-005",
+    id: 5,
     name: "GM Bolt EV Battery Pack Housing",
     partNo: "GM-BATT-05",
     client: "GM",

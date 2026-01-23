@@ -29,20 +29,6 @@ export const TaskDetailModal: React.FC<Props> = ({ task, project, onClose, onUpd
     loadDocuments(task.id);
   }, [task]);
 
-  const handleEditChange = (field: 'status' | 'assignee', value: string) => {
-    if (field === 'status') setEditStatus(value as TaskStatus);
-    if (field === 'assignee') setEditAssignee(value);
-    setHasChanges(true);
-  };
-
-  const handleSaveChanges = () => {
-    if (task && onTaskUpdate) {
-      onTaskUpdate(task.id, { status: editStatus, assignee: editAssignee });
-      setHasChanges(false);
-      // Optional: Show a brief success toast or indicator here
-    }
-  };
-
   const loadDocuments = async (taskId: number) => {
     setLoading(true);
     const docs = await getDocuments(taskId);
@@ -96,36 +82,16 @@ export const TaskDetailModal: React.FC<Props> = ({ task, project, onClose, onUpd
     }
   };
   
-  const handleFmeaSaveToSystem = async (data: FmeaData, fileName: string) => {
-    if (!task) return;
-    
-    setUploading(true);
-    const newDoc = await saveFmeaDocument(task.id, fileName, data);
-    if (newDoc) {
-      setDocuments(prev => [newDoc, ...prev]);
-      onUpdate?.();
-    }
-    setUploading(false);
-  };
-
   const handleOpenFmea = async (doc: TaskDocument) => {
-    // If it's a JSON file (our saved FMEA format), try to load it for Editing
+    // If it's a JSON file (our saved FMEA format), try to load it for viewing
     if (doc.name.endsWith('.json')) {
-      setUploading(true); // Re-use uploading state for loading indicator
-      const data = await loadFmeaData(doc);
-      if (data) {
-        setFmeaInitialData(data);
-        setIsFmeaModalOpen(true);
-      } else {
-        alert('데이터를 불러오는데 실패했습니다.');
-      }
-      setUploading(false);
+      setPreviewDocument(doc);
     }
   };
 
   const openNewFmea = () => {
-    setFmeaInitialData(undefined);
-    setIsFmeaModalOpen(true);
+    setExistingFmeaData(undefined);
+    setShowFmeaModal(true);
   };
 
   const handleSaveFmea = async (fmeaData: FmeaData) => {

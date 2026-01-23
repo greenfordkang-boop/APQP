@@ -10,7 +10,6 @@ interface Props {
   totalDays?: number;
   onTaskClick?: (task: Task) => void;
   documentCounts?: Record<number, number>;
-  milestones?: Milestone[];
 }
 
 export const GanttChart: React.FC<Props> = ({ tasks, milestones = [], startDate, totalDays = 670, onTaskClick, documentCounts = {} }) => {

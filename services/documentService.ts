@@ -181,7 +181,8 @@ export const loadFmeaData = async (doc: TaskDocument): Promise<FmeaData | null> 
   if (Array.isArray(rawData)) {
     return {
       rows: rawData as FmeaRow[],
-      history: []
+      revisions: [],
+      version: 1
     };
   } else {
     return rawData as FmeaData;

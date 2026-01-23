@@ -19,13 +19,13 @@ describe('Utils', () => {
 
   describe('getDelayStatus', () => {
     it('should detect delayed status', () => {
-      const result = getDelayStatus('2025-01-01', '2025-01-10', 'Completed');
+      const result = getDelayStatus('2025-01-01', '2025-01-10');
       expect(result).toBe('delayed');
     });
 
     it('should detect on-track status', () => {
-      const result = getDelayStatus('2025-01-01', '2025-01-10', 'Completed');
-      expect(result).toBe('delayed');
+      const result = getDelayStatus('2025-01-10', '2025-01-05');
+      expect(result).toBe('on-time');
     });
   });
 });

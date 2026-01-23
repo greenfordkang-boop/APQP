@@ -28,15 +28,11 @@ export interface ProjectInfo {
   partNo: string;
   client: string;
   manager: string;
-  startDate: string; // Added for portfolio Gantt
-  endDate: string;   // Added for portfolio Gantt
-  status: 'On Track' | 'Delayed' | 'Critical' | 'Completed'; // Overall status
-  progress: number; // 0-100
-  milestones: Milestone[];
   startDate?: string;
   endDate?: string;
-  status?: 'Planning' | 'In Progress' | 'On Hold' | 'Completed';
+  status?: 'Planning' | 'In Progress' | 'On Hold' | 'Completed' | 'On Track' | 'Delayed' | 'Critical';
   progress?: number;
+  milestones: Milestone[];
 }
 
 export interface TaskDocument {

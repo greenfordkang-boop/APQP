@@ -7,7 +7,6 @@ import { PortfolioGantt } from './components/PortfolioGantt';
 import { MilestoneBoard } from './components/MilestoneBoard';
 import { InsightPanel } from './components/InsightPanel';
 import { TaskDetailModal } from './components/TaskDetailModal';
-import { PortfolioGantt } from './components/PortfolioGantt';
 import { ProjectEditModal } from './components/ProjectEditModal';
 import { getTaskDocumentCounts } from './services/documentService';
 import { BarChart3, Layout, Settings, Share2, Sparkles, UserCircle, Plus, List, Edit2 } from 'lucide-react';
