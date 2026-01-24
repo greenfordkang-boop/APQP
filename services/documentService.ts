@@ -84,22 +84,36 @@ export const uploadDocument = async (taskId: number, file: File): Promise<TaskDo
   };
 
   if (isSupabaseConfigured()) {
+    console.log('[Upload] Starting Supabase upload for task:', taskId, 'file:', file.name);
+
     try {
       // 1. Upload to Storage Bucket 'project-files'
       const fileExt = file.name.split('.').pop();
-      const fileName = `${taskId}/${Math.random()}.${fileExt}`;
-      const filePath = `${fileName}`;
+      const fileName = `${taskId}/${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
+      const filePath = fileName;
+
+      console.log('[Upload] Uploading to storage:', filePath);
 
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('project-files')
-        .upload(filePath, file);
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('[Upload] Storage upload error:', uploadError);
+        throw new Error(`Storage upload failed: ${uploadError.message}`);
+      }
+
+      console.log('[Upload] Storage upload successful:', uploadData);
 
       // 2. Get Public URL
       const { data: { publicUrl } } = supabase.storage
         .from('project-files')
         .getPublicUrl(filePath);
+
+      console.log('[Upload] Public URL:', publicUrl);
 
       // 3. Insert Metadata into Database Table 'documents'
       const docData: Partial<TaskDocument> = {
@@ -110,22 +124,37 @@ export const uploadDocument = async (taskId: number, file: File): Promise<TaskDo
         type: file.type,
       };
 
+      console.log('[Upload] Inserting document metadata:', docData);
+
       const { data: dbData, error: dbError } = await supabase
         .from('documents')
         .insert(docData)
         .select()
         .single();
 
-      if (dbError) throw dbError;
+      if (dbError) {
+        console.error('[Upload] Database insert error:', dbError);
+        throw new Error(`Database insert failed: ${dbError.message}`);
+      }
+
+      console.log('[Upload] Database insert successful:', dbData);
+      console.log('[Upload] ✅ Upload completed successfully');
 
       return dbData as TaskDocument;
-    } catch (error) {
-      console.error('Supabase upload failed, falling back to mock storage:', error);
-      alert('Supabase 업로드 실패. 로컬 저장소에 임시 저장합니다.');
+    } catch (error: any) {
+      console.error('[Upload] ❌ Supabase upload failed:', error);
+      console.error('[Upload] Error details:', error.message, error.code, error.details);
+
+      // Show specific error message
+      const errorMsg = error.message || 'Unknown error';
+      alert(`Supabase 업로드 실패: ${errorMsg}\n로컬 저장소에 임시 저장합니다.`);
+
       // Fallback to mock storage
+      console.log('[Upload] Falling back to localStorage');
       return await uploadToMock();
     }
   } else {
+    console.log('[Upload] Supabase not configured, using localStorage');
     // --- Mock Implementation (LocalStorage with Base64 for preview) ---
     return await uploadToMock();
   }
