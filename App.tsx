@@ -116,20 +116,23 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    const auth = localStorage.getItem('apqp_authenticated');
-    if (auth === 'true') {
-      setIsAuthenticated(true);
-    }
+    // Auto-authenticate for emergency deployment
+    setIsAuthenticated(true);
+
+    // const auth = localStorage.getItem('apqp_authenticated');
+    // if (auth === 'true') {
+    //   setIsAuthenticated(true);
+    // }
   }, []);
 
   const handleLogin = () => {
     setIsAuthenticated(true);
   };
 
-  // Show login screen if not authenticated
-  if (!isAuthenticated) {
-    return <LoginScreen onLogin={handleLogin} />;
-  }
+  // DISABLED: Show login screen if not authenticated
+  // if (!isAuthenticated) {
+  //   return <LoginScreen onLogin={handleLogin} />;
+  // }
 
   // Dashboard View (Portfolio)
   if (viewMode === 'dashboard') {
