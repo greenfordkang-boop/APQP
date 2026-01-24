@@ -60,13 +60,23 @@ export const TaskDetailModal: React.FC<Props> = ({ task, project, onClose, onUpd
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      const file = e.target.files[0];
       setUploading(true);
-      const newDoc = await uploadDocument(task.id, file);
-      if (newDoc) {
-        setDocuments(prev => [newDoc, ...prev]);
+      const files = Array.from(e.target.files);
+      const uploadedDocs = [];
+
+      // Upload all selected files
+      for (const file of files) {
+        const newDoc = await uploadDocument(task.id, file);
+        if (newDoc) {
+          uploadedDocs.push(newDoc);
+        }
+      }
+
+      if (uploadedDocs.length > 0) {
+        setDocuments(prev => [...uploadedDocs, ...prev]);
         onUpdate?.(task);
       }
+
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
@@ -229,6 +239,7 @@ export const TaskDetailModal: React.FC<Props> = ({ task, project, onClose, onUpd
                   ref={fileInputRef}
                   className="hidden"
                   onChange={handleFileChange}
+                  multiple
                 />
                 <button
                   onClick={() => fileInputRef.current?.click()}
