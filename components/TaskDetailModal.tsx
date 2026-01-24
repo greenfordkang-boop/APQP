@@ -61,8 +61,8 @@ export const TaskDetailModal: React.FC<Props> = ({ task, project, onClose, onUpd
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       setUploading(true);
-      const files = Array.from(e.target.files);
-      const uploadedDocs = [];
+      const files: File[] = Array.from(e.target.files);
+      const uploadedDocs: TaskDocument[] = [];
 
       // Upload all selected files
       for (const file of files) {
