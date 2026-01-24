@@ -51,6 +51,38 @@ export const uploadDocument = async (taskId: number, file: File): Promise<TaskDo
     alert(validation.error);
     return null;
   }
+
+  // Helper function for mock upload
+  const uploadToMock = async (): Promise<TaskDocument> => {
+    await delay(800);
+
+    // Convert file to Base64 for preview support in mock mode
+    const fileDataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+    const mockDoc: TaskDocument = {
+      id: Math.random().toString(36).substr(2, 9),
+      task_id: taskId,
+      name: file.name,
+      url: fileDataUrl, // Store as data URL for preview
+      size: file.size,
+      type: file.type,
+      created_at: new Date().toISOString(),
+    };
+
+    const existing = JSON.parse(localStorage.getItem(MOCK_STORAGE_KEY) || '[]');
+    try {
+      localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify([...existing, mockDoc]));
+    } catch (e) {
+        alert('브라우저 저장공간이 부족하여 파일 내용을 저장하지 못했습니다. (목록에는 표시됩니다)');
+    }
+    return mockDoc;
+  };
+
   if (isSupabaseConfigured()) {
     try {
       // 1. Upload to Storage Bucket 'project-files'
@@ -88,39 +120,14 @@ export const uploadDocument = async (taskId: number, file: File): Promise<TaskDo
 
       return dbData as TaskDocument;
     } catch (error) {
-      console.error('Supabase upload failed:', error);
-      alert('업로드 실패: Supabase 설정을 확인해주세요.');
-      return null;
+      console.error('Supabase upload failed, falling back to mock storage:', error);
+      alert('Supabase 업로드 실패. 로컬 저장소에 임시 저장합니다.');
+      // Fallback to mock storage
+      return await uploadToMock();
     }
   } else {
     // --- Mock Implementation (LocalStorage with Base64 for preview) ---
-    await delay(800);
-
-    // Convert file to Base64 for preview support in mock mode
-    const fileDataUrl = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-
-    const mockDoc: TaskDocument = {
-      id: Math.random().toString(36).substr(2, 9),
-      task_id: taskId,
-      name: file.name,
-      url: fileDataUrl, // Store as data URL for preview
-      size: file.size,
-      type: file.type,
-      created_at: new Date().toISOString(),
-    };
-
-    const existing = JSON.parse(localStorage.getItem(MOCK_STORAGE_KEY) || '[]');
-    try {
-      localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify([...existing, mockDoc]));
-    } catch (e) {
-        alert('브라우저 저장공간이 부족하여 파일 내용을 저장하지 못했습니다. (목록에는 표시됩니다)');
-    }
-    return mockDoc;
+    return await uploadToMock();
   }
 };
 
