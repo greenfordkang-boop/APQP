@@ -297,31 +297,6 @@ export const GanttChart: React.FC<Props> = ({ tasks, milestones = [], startDate,
               })}
             </div>
           ))}
-
-          {/* Milestone Overlay */}
-          {milestones && milestones.length > 0 && (
-            <div className="absolute inset-0 pointer-events-none">
-              {milestones.map((milestone, idx) => {
-                const position = calculateMilestonePosition(milestone.date);
-                if (position >= 0 && position <= 100) {
-                  return (
-                    <div
-                      key={idx}
-                      className="absolute top-0 bottom-0 border-l-2 border-dashed border-purple-400"
-                      style={{ left: `${position}%` }}
-                      title={`${milestone.name}: ${formatDate(milestone.date)}`}
-                    >
-                      <div className="absolute -top-6 -left-12 flex items-center space-x-1 bg-white px-2 py-1 rounded shadow-sm border border-purple-200 text-xs font-medium text-purple-700">
-                        <Flag size={12} />
-                        <span>{milestone.name}</span>
-                      </div>
-                    </div>
-                  );
-                }
-                return null;
-              })}
-            </div>
-          )}
         </div>
       </div>
     </div>

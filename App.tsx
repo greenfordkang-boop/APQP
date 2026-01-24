@@ -222,7 +222,7 @@ const App: React.FC = () => {
           </div>
           <div className="flex-grow">
             <div className="flex items-center space-x-3">
-              <h1 className="text-lg font-bold text-gray-900 tracking-tight">e-Dev 개발계획</h1>
+              <h1 className="text-lg font-bold text-gray-900 tracking-tight">개발계획서</h1>
               <button
                 onClick={handleEditCurrentProject}
                 className="p-1 hover:bg-gray-100 rounded transition-colors"
