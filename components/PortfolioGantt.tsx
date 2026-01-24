@@ -29,6 +29,18 @@ export const PortfolioGantt: React.FC<PortfolioGanttProps> = ({
     return acc;
   }, {} as Record<string, ProjectInfo[]>);
 
+  // Calculate today position
+  const todayPosition = React.useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diffTime = today.getTime() - chartStart.getTime();
+    const days = diffTime / (1000 * 3600 * 24);
+    const position = (days / totalDays) * 100;
+
+    // Only return if within chart range
+    return (position >= 0 && position <= 100) ? position : null;
+  }, [chartStart, totalDays]);
+
   const calculatePosition = (dateStr: string) => {
     const date = new Date(dateStr);
     const daysDiff = Math.floor((date.getTime() - chartStart.getTime()) / (1000 * 60 * 60 * 24));
@@ -228,6 +240,17 @@ export const PortfolioGantt: React.FC<PortfolioGanttProps> = ({
                     }
                     return null;
                   })}
+
+                  {/* Today line */}
+                  {todayPosition !== null && (
+                    <div
+                      className="absolute top-0 bottom-0 border-l-2 border-red-500 z-10"
+                      style={{ left: `${todayPosition}%` }}
+                      title="오늘"
+                    >
+                      <div className="absolute -top-1 -left-1.5 w-3 h-3 bg-red-500 rounded-full"></div>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

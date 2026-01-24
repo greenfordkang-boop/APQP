@@ -81,13 +81,13 @@ export const GanttChart: React.FC<Props> = ({ tasks, milestones = [], startDate,
   const milestoneLines = useMemo(() => {
     if (!milestones) return [];
     const start = new Date(startDate);
-    
+
     return milestones.map(ms => {
       const msDate = new Date(ms.date);
       const diffTime = msDate.getTime() - start.getTime();
       const days = diffTime / (1000 * 3600 * 24);
       const left = (days / totalDays) * 100;
-      
+
       // Convert bg-color to border/text color roughly
       const colorClass = ms.color ? ms.color.replace('bg-', 'border-').replace('500', '400') : 'border-blue-400';
       const textClass = ms.color ? ms.color.replace('bg-', 'text-').replace('500', '600') : 'text-blue-600';
@@ -96,6 +96,23 @@ export const GanttChart: React.FC<Props> = ({ tasks, milestones = [], startDate,
       return { ...ms, left, colorClass, textClass, bgClass };
     }).filter(ms => ms.left >= 0 && ms.left <= 100);
   }, [milestones, startDate, totalDays]);
+
+  // Calculate today line position
+  const todayLinePosition = useMemo(() => {
+    const start = new Date(startDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const diffTime = today.getTime() - start.getTime();
+    const days = diffTime / (1000 * 3600 * 24);
+    const left = (days / totalDays) * 100;
+
+    // Only show if today is within the chart range
+    if (left >= 0 && left <= 100) {
+      return left;
+    }
+    return null;
+  }, [startDate, totalDays]);
 
   return (
     <div className="bg-white rounded-xl shadow border border-gray-200 overflow-hidden flex flex-col h-full">
@@ -149,7 +166,7 @@ export const GanttChart: React.FC<Props> = ({ tasks, milestones = [], startDate,
           <div className="absolute inset-0 pointer-events-none z-10 pl-64 h-full">
              <div className="relative w-full h-full">
                 {milestoneLines.map((ms, idx) => (
-                  <div 
+                  <div
                     key={idx}
                     className={`absolute top-0 bottom-0 border-l-2 border-dashed opacity-60 flex flex-col items-center ${ms.colorClass}`}
                     style={{ left: `${ms.left}%` }}
@@ -161,6 +178,18 @@ export const GanttChart: React.FC<Props> = ({ tasks, milestones = [], startDate,
                      </div>
                   </div>
                 ))}
+
+                {/* Today Line */}
+                {todayLinePosition !== null && (
+                  <div
+                    className="absolute top-0 bottom-0 border-l-2 border-red-500 opacity-80 flex flex-col items-center"
+                    style={{ left: `${todayLinePosition}%` }}
+                  >
+                     <div className="mt-2 px-2 py-0.5 rounded text-[10px] font-bold shadow-md whitespace-nowrap z-20 bg-red-500 text-white">
+                        오늘
+                     </div>
+                  </div>
+                )}
              </div>
           </div>
 
