@@ -2,7 +2,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Task, TaskDocument, ProjectInfo, FmeaData } from '../types';
 import { uploadDocument, getDocuments, deleteDocument } from '../services/documentService';
-import { X, FileText, Upload, Trash2, Download, HardDrive, Sparkles, Eye, Save, Edit3 } from 'lucide-react';
+import { getCommentsByTask, addComment } from '../services/commentService';
+import { X, FileText, Upload, Trash2, Download, HardDrive, Sparkles, Eye, Save, Edit3, MessageSquare } from 'lucide-react';
+import type { TaskComment } from '../types';
 import { isSupabaseConfigured } from '../services/supabaseClient';
 import { FmeaGeneratorModal } from './FmeaGeneratorModal';
 import { FilePreviewModal } from './FilePreviewModal';
@@ -25,9 +27,27 @@ export const TaskDetailModal: React.FC<Props> = ({ task, project, onClose, onUpd
   const [editedTask, setEditedTask] = useState<Task>(task);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [comments, setComments] = useState<TaskComment[]>([]);
+  const [commentText, setCommentText] = useState('');
+  const [commentAuthor, setCommentAuthor] = useState(task.assignee || '');
+  const [commentSaving, setCommentSaving] = useState(false);
+
   useEffect(() => {
     loadDocuments(task.id);
   }, [task]);
+
+  useEffect(() => {
+    loadComments(task.id);
+  }, [task]);
+
+  useEffect(() => {
+    setCommentAuthor(task.assignee || '');
+  }, [task.assignee]);
+
+  const loadComments = async (taskId: number) => {
+    const list = await getCommentsByTask(taskId);
+    setComments(list);
+  };
 
   const loadDocuments = async (taskId: number) => {
     setLoading(true);
@@ -91,6 +111,31 @@ export const TaskDetailModal: React.FC<Props> = ({ task, project, onClose, onUpd
       }
     }
   };
+
+  const handleDownloadDoc = async (doc: TaskDocument) => {
+    if (!doc.url || doc.url === '#') return;
+    let href: string;
+    if (doc.url.startsWith('data:') || doc.url.startsWith('blob:')) {
+      href = doc.url;
+    } else {
+      try {
+        const res = await fetch(doc.url, { mode: 'cors' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const blob = await res.blob();
+        href = URL.createObjectURL(blob);
+      } catch {
+        window.open(doc.url, '_blank');
+        return;
+      }
+    }
+    const link = document.createElement('a');
+    link.href = href;
+    link.download = doc.name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    if (href.startsWith('blob:')) URL.revokeObjectURL(href);
+  };
   
   const handleOpenFmea = async (doc: TaskDocument) => {
     // If it's a JSON file (our saved FMEA format), try to load it for viewing
@@ -131,6 +176,23 @@ export const TaskDetailModal: React.FC<Props> = ({ task, project, onClose, onUpd
   const handleSaveTask = () => {
     onUpdate?.(editedTask);
     setIsEditing(false);
+  };
+
+  const handleAddComment = async () => {
+    const content = commentText.trim();
+    const author = commentAuthor.trim();
+    if (!content || !author) {
+      alert('의견과 등록자를 입력해 주세요.');
+      return;
+    }
+    setCommentSaving(true);
+    const projectId = project.id ?? undefined;
+    const added = await addComment(task.id, content, author, projectId);
+    setCommentSaving(false);
+    if (added) {
+      setCommentText('');
+      await loadComments(task.id);
+    }
   };
 
   const isFmeaTask = task.name.toLowerCase().includes('fmea') || task.name.toLowerCase().includes('공정');
@@ -227,6 +289,56 @@ export const TaskDetailModal: React.FC<Props> = ({ task, project, onClose, onUpd
               </div>
             )}
 
+            {/* 담당자의 의견 */}
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold text-gray-800 flex items-center mb-3">
+                <MessageSquare className="mr-2 text-amber-500" size={20} />
+                담당자의 의견
+              </h3>
+              <div className="space-y-2 mb-3">
+                <textarea
+                  value={commentText}
+                  onChange={(e) => setCommentText(e.target.value)}
+                  placeholder="의견을 입력하세요. (등록 시 날짜 자동 등록)"
+                  rows={3}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 resize-none"
+                />
+                <div className="flex items-center gap-2 flex-wrap">
+                  <label className="text-sm text-gray-600">등록자:</label>
+                  <input
+                    type="text"
+                    value={commentAuthor}
+                    onChange={(e) => setCommentAuthor(e.target.value)}
+                    placeholder="이름"
+                    className="flex-1 min-w-[120px] px-2 py-1.5 text-sm border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddComment}
+                    disabled={commentSaving || !commentText.trim() || !commentAuthor.trim()}
+                    className="px-4 py-1.5 text-sm font-medium text-amber-800 bg-amber-100 hover:bg-amber-200 rounded-lg disabled:opacity-50"
+                  >
+                    {commentSaving ? '저장 중…' : '의견 등록'}
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-2">
+                {comments.length === 0 ? (
+                  <p className="text-sm text-gray-400 py-2">등록된 의견이 없습니다.</p>
+                ) : (
+                  comments.map((c) => (
+                    <div key={c.id} className="p-3 bg-amber-50/50 border border-amber-100 rounded-lg text-sm">
+                      <div className="flex justify-between text-gray-500 mb-1">
+                        <span>{new Date(c.created_at).toLocaleString('ko-KR')}</span>
+                        <span>{c.author}</span>
+                      </div>
+                      <p className="text-gray-800 whitespace-pre-wrap">{c.content}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-800 flex items-center">
                 <HardDrive className="mr-2 text-indigo-500" size={20} />
@@ -301,14 +413,14 @@ export const TaskDetailModal: React.FC<Props> = ({ task, project, onClose, onUpd
                       >
                         <Eye size={18} />
                       </button>
-                      <a
-                        href={doc.url}
-                        download={doc.name}
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadDoc(doc)}
                         className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                         title="다운로드"
                       >
                         <Download size={18} />
-                      </a>
+                      </button>
                       <button
                         onClick={() => handleDelete(doc.id)}
                         className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"

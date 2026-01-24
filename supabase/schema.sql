@@ -82,6 +82,19 @@ CREATE TABLE IF NOT EXISTS fmea_data (
 CREATE INDEX idx_fmea_task_id ON fmea_data(task_id);
 
 -- ============================================
+-- Task Comments (담당자 의견)
+-- ============================================
+CREATE TABLE IF NOT EXISTS task_comments (
+  id SERIAL PRIMARY KEY,
+  task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  author TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_task_comments_task_id ON task_comments(task_id);
+
+-- ============================================
 -- Triggers for updated_at
 -- ============================================
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -110,6 +123,7 @@ ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE fmea_data ENABLE ROW LEVEL SECURITY;
+ALTER TABLE task_comments ENABLE ROW LEVEL SECURITY;
 
 -- For development: Allow all operations (MODIFY FOR PRODUCTION!)
 -- In production, you should implement proper authentication-based policies
@@ -124,6 +138,9 @@ CREATE POLICY "Allow all operations on documents" ON documents
   FOR ALL USING (true) WITH CHECK (true);
 
 CREATE POLICY "Allow all operations on fmea_data" ON fmea_data
+  FOR ALL USING (true) WITH CHECK (true);
+
+CREATE POLICY "Allow all operations on task_comments" ON task_comments
   FOR ALL USING (true) WITH CHECK (true);
 
 -- ============================================
@@ -181,6 +198,21 @@ FROM tasks t
 JOIN projects p ON t.project_id = p.id
 WHERE t.status = 'Delayed'
   OR (t.actual_end IS NOT NULL AND t.actual_end > t.plan_end);
+
+-- 담당자 의견 관리자 목록: 상위프로젝트 > 하위메뉴(태스크) > 코멘트 > 등록일자 > 등록자
+CREATE OR REPLACE VIEW comment_list_admin AS
+SELECT
+  tc.id,
+  tc.task_id,
+  tc.content,
+  tc.author,
+  tc.created_at,
+  t.name AS task_name,
+  t.phase,
+  p.name AS project_name
+FROM task_comments tc
+JOIN tasks t ON t.id = tc.task_id
+JOIN projects p ON p.id = t.project_id;
 
 -- Project progress summary
 CREATE OR REPLACE VIEW project_progress_view AS

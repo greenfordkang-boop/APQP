@@ -52,6 +52,13 @@ export const uploadDocument = async (taskId: number, file: File): Promise<TaskDo
     return null;
   }
 
+  // [3] taskId 가드: 없거나 유효하지 않으면 업로드 차단
+  const tid = taskId == null ? NaN : Number(taskId);
+  if (!Number.isInteger(tid) || tid < 1) {
+    alert('Task 선택/생성 후 업로드해 주세요.');
+    return null;
+  }
+
   // Helper function for mock upload
   const uploadToMock = async (): Promise<TaskDocument> => {
     await delay(800);
@@ -66,7 +73,7 @@ export const uploadDocument = async (taskId: number, file: File): Promise<TaskDo
 
     const mockDoc: TaskDocument = {
       id: Math.random().toString(36).substr(2, 9),
-      task_id: taskId,
+      task_id: tid,
       name: file.name,
       url: fileDataUrl, // Store as data URL for preview
       size: file.size,
@@ -84,47 +91,80 @@ export const uploadDocument = async (taskId: number, file: File): Promise<TaskDo
   };
 
   if (isSupabaseConfigured()) {
-    console.log('[Upload] Starting Supabase upload for task:', taskId, 'file:', file.name);
+    const bucket = 'project-files';
+
+    // [2] 입력값 로그 (재현/디버깅)
+    console.log('[Upload] inputs:', {
+      file_name: file.name,
+      file_size: file.size,
+      file_type: file.type,
+      taskId: tid,
+      bucket,
+    });
 
     try {
-      // 1. Upload to Storage Bucket 'project-files'
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${taskId}/${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
-      const filePath = fileName;
+      // [3] env 로딩 확인 (Vite: VITE_* 만 노출)
+      console.log('[Upload] env check:', {
+        VITE_SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL ? '(set)' : 'undefined',
+        VITE_SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY ? '(set)' : 'undefined',
+      });
 
-      console.log('[Upload] Uploading to storage:', filePath);
-
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('project-files')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false
-        });
-
-      if (uploadError) {
-        console.error('[Upload] Storage upload error:', uploadError);
-        throw new Error(`Storage upload failed: ${uploadError.message}`);
+      // [3] documents.task_id FK → tasks.id: DB에 해당 task 존재하는지 SELECT로 확인
+      const { data: taskRow, error: taskErr } = await supabase
+        .from('tasks')
+        .select('id')
+        .eq('id', tid)
+        .maybeSingle();
+      if (taskErr || !taskRow) {
+        console.error('[Upload] task not found in DB:', { taskId: tid, error: taskErr });
+        alert('해당 Task가 DB에 없습니다. 프로젝트/태스크를 Supabase에 먼저 저장한 뒤 업로드해 주세요.');
+        return null;
       }
 
-      console.log('[Upload] Storage upload successful:', uploadData);
+      // 1. Upload to Storage Bucket 'project-files'
+      // [4] path: 확장자 sanitize, UUID 기반으로 충돌/한글·특수문자 회피
+      const rawExt = (file.name.split('.').pop() || 'bin').toLowerCase();
+      const ext = rawExt.replace(/[^a-z0-9]/g, '') || 'bin';
+      const unique = typeof crypto !== 'undefined' && crypto.randomUUID
+        ? `${Date.now()}-${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`
+        : `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+      const filePath = `${tid}/${unique}.${ext}`;
+
+      console.log('[Upload] path:', filePath);
+
+      // [4] file은 File(Blob) 사용, upsert: true, contentType 명시
+      const uploadOpts = {
+        cacheControl: '3600',
+        upsert: true,
+        contentType: file.type || 'application/octet-stream',
+      };
+
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from(bucket)
+        .upload(filePath, file, uploadOpts);
+
+      // [2] Supabase 응답 data/error 전체 출력
+      console.log('[Upload] storage response:', { data: uploadData, error: uploadError });
+
+      if (uploadError) {
+        console.error('[Upload] Storage upload error (full):', uploadError);
+        throw new Error(`Storage: ${uploadError.message} (${uploadError.name || ''})`);
+      }
+
+      console.log('[Upload] Storage OK, path:', filePath);
 
       // 2. Get Public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('project-files')
-        .getPublicUrl(filePath);
+      const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(filePath);
+      console.log('[Upload] publicUrl:', publicUrl);
 
-      console.log('[Upload] Public URL:', publicUrl);
-
-      // 3. Insert Metadata into Database Table 'documents'
+      // 3. Insert Metadata into 'documents'
       const docData: Partial<TaskDocument> = {
-        task_id: taskId,
+        task_id: tid,
         name: file.name,
         url: publicUrl,
         size: file.size,
         type: file.type,
       };
-
-      console.log('[Upload] Inserting document metadata:', docData);
 
       const { data: dbData, error: dbError } = await supabase
         .from('documents')
@@ -132,26 +172,34 @@ export const uploadDocument = async (taskId: number, file: File): Promise<TaskDo
         .select()
         .single();
 
+      // [2] DB insert 응답 전체
+      console.log('[Upload] db insert response:', { data: dbData, error: dbError });
+
       if (dbError) {
-        console.error('[Upload] Database insert error:', dbError);
-        throw new Error(`Database insert failed: ${dbError.message}`);
+        console.error('[Upload] Database insert error (full):', dbError);
+        // [4] 보상: DB insert 실패 시 방금 업로드한 Storage 파일 삭제 (고아 파일 방지)
+        try {
+          const { error: rmErr } = await supabase.storage.from(bucket).remove([filePath]);
+          if (rmErr) console.warn('[Upload] Rollback remove failed:', rmErr);
+          else console.log('[Upload] Rollback: removed orphan file from storage:', filePath);
+        } catch (rbErr) {
+          console.warn('[Upload] Rollback remove threw:', rbErr);
+        }
+        throw new Error(`DB insert: ${dbError.message} (${dbError.code || ''})`);
       }
 
-      console.log('[Upload] Database insert successful:', dbData);
-      console.log('[Upload] ✅ Upload completed successfully');
-
+      console.log('[Upload] ✅ done. id:', (dbData as TaskDocument)?.id, 'url:', publicUrl);
       return dbData as TaskDocument;
-    } catch (error: any) {
-      console.error('[Upload] ❌ Supabase upload failed:', error);
-      console.error('[Upload] Error details:', error.message, error.code, error.details);
+    } catch (err: unknown) {
+      const e = err as { message?: string; code?: string; details?: string; name?: string };
+      console.error('[Upload] ❌ full error object:', e);
+      console.error('[Upload] message|code|details:', e?.message, e?.code, e?.details);
 
-      // Show specific error message
-      const errorMsg = error.message || 'Unknown error';
-      alert(`Supabase 업로드 실패: ${errorMsg}\n로컬 저장소에 임시 저장합니다.`);
+      const msg = [e?.message, e?.code, e?.details].filter(Boolean).join(' | ') || String(e);
+      alert(`Supabase 업로드 실패:\n${msg}\n\n(콘솔에서 [Upload] 로그를 확인하세요. 로컬 임시 저장은 하지 않습니다.)`);
 
-      // Fallback to mock storage
-      console.log('[Upload] Falling back to localStorage');
-      return await uploadToMock();
+      // 디버깅 시 fallback 비활성화: 사용자에게 실패만 노출
+      return null;
     }
   } else {
     console.log('[Upload] Supabase not configured, using localStorage');

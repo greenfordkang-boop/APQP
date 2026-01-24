@@ -8,11 +8,12 @@ import { MilestoneBoard } from './components/MilestoneBoard';
 import { InsightPanel } from './components/InsightPanel';
 import { TaskDetailModal } from './components/TaskDetailModal';
 import { ProjectEditModal } from './components/ProjectEditModal';
+import { AdminCommentList } from './components/AdminCommentList';
 import { LoginScreen } from './components/LoginScreen';
 import { getTaskDocumentCounts } from './services/documentService';
-import { BarChart3, Layout, Settings, Share2, Sparkles, UserCircle, Plus, List, Edit2 } from 'lucide-react';
+import { BarChart3, Layout, Settings, Share2, Sparkles, UserCircle, Plus, List, Edit2, MessageSquare } from 'lucide-react';
 
-type ViewMode = 'dashboard' | 'detail';
+type ViewMode = 'dashboard' | 'detail' | 'commentList';
 
 const App: React.FC = () => {
   // Authentication state
@@ -43,6 +44,7 @@ const App: React.FC = () => {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<ProjectInfo | undefined>(undefined);
+  const [commentListReturnTo, setCommentListReturnTo] = useState<'dashboard' | 'detail'>('detail');
 
   useEffect(() => {
     refreshDocCounts();
@@ -131,6 +133,17 @@ const App: React.FC = () => {
     return <LoginScreen onLogin={handleLogin} />;
   }
 
+  // 담당자 의견 목록 (관리자)
+  if (viewMode === 'commentList') {
+    return (
+      <AdminCommentList
+        projects={projects}
+        tasks={tasks}
+        onBack={() => setViewMode(commentListReturnTo)}
+      />
+    );
+  }
+
   // Dashboard View (Portfolio)
   if (viewMode === 'dashboard') {
     return (
@@ -154,6 +167,14 @@ const App: React.FC = () => {
             >
               <Plus size={16} />
               <span>새 프로젝트</span>
+            </button>
+
+            <button
+              onClick={() => { setCommentListReturnTo('dashboard'); setViewMode('commentList'); }}
+              className="flex items-center space-x-2 px-4 py-2 rounded-full text-sm font-medium border bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100 hover:border-amber-400 transition-colors"
+            >
+              <MessageSquare size={16} />
+              <span>담당자 의견 목록</span>
             </button>
 
             <div className="h-8 w-px bg-gray-200 mx-2"></div>
@@ -247,6 +268,14 @@ const App: React.FC = () => {
           >
             <Sparkles size={16} className={isInsightOpen ? "text-indigo-600" : "text-gray-400"} />
             <span>AI 리스크 보고서</span>
+          </button>
+
+          <button
+            onClick={() => { setCommentListReturnTo('detail'); setViewMode('commentList'); }}
+            className="flex items-center space-x-2 px-4 py-2 rounded-full text-sm font-medium border bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100 hover:border-amber-400 transition-colors"
+          >
+            <MessageSquare size={16} />
+            <span>담당자 의견 목록</span>
           </button>
 
           <div className="h-8 w-px bg-gray-200 mx-2"></div>

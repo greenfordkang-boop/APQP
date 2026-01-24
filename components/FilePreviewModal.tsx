@@ -62,18 +62,38 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ document, on
     }
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (document.url === '#' || !document.url) {
       alert('Mock 모드에서는 다운로드할 수 없습니다.');
       return;
     }
 
+    let href: string;
+    if (previewContent && (previewContent.startsWith('data:') || previewContent.startsWith('blob:'))) {
+      href = previewContent;
+    } else if (document.url.startsWith('data:') || document.url.startsWith('blob:')) {
+      href = document.url;
+    } else {
+      // Supabase 등 cross-origin http(s): fetch → Blob → ObjectURL로 내려받기 (download 속성 인정)
+      try {
+        const res = await fetch(document.url, { mode: 'cors' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const blob = await res.blob();
+        href = URL.createObjectURL(blob);
+      } catch (e) {
+        console.warn('[Download] fetch 실패, 새 탭에서 열기:', e);
+        window.open(document.url, '_blank');
+        return;
+      }
+    }
+
     const link = document.createElement('a');
-    link.href = previewContent || document.url;
+    link.href = href;
     link.download = document.name;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    if (href.startsWith('blob:')) URL.revokeObjectURL(href);
   };
 
   const renderPreview = () => {

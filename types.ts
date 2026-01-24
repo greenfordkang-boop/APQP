@@ -82,3 +82,19 @@ export interface FmeaData {
   version: number;
   lastModified?: string;
 }
+
+/** 담당자 의견 (하위 단계별 코멘트) */
+export interface TaskComment {
+  id: number | string;
+  task_id: number;
+  content: string;
+  author: string;
+  created_at: string;
+}
+
+/** 관리자 목록용: 프로젝트·태스크 정보 포함 */
+export interface TaskCommentRow extends TaskComment {
+  project_name: string;
+  task_name: string;
+  phase: string | null;
+}
