@@ -8,7 +8,12 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'your-anon-k
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 export const isSupabaseConfigured = () => {
-  return import.meta.env.VITE_SUPABASE_URL &&
-         import.meta.env.VITE_SUPABASE_ANON_KEY &&
-         import.meta.env.VITE_SUPABASE_URL !== 'https://your-project.supabase.co';
+  // TEMPORARY: Force localStorage mode for emergency deployment
+  // TODO: Re-enable Supabase after CORS issue is resolved
+  return false;
+
+  // Original implementation (uncomment when ready):
+  // return import.meta.env.VITE_SUPABASE_URL &&
+  //        import.meta.env.VITE_SUPABASE_ANON_KEY &&
+  //        import.meta.env.VITE_SUPABASE_URL !== 'https://your-project.supabase.co';
 };
