@@ -1,5 +1,6 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { User } from '@supabase/supabase-js';
 import { MOCK_PROJECT, MOCK_TASKS } from './constants';
 import { Task, ProjectInfo } from './types';
 import { GanttChart } from './components/GanttChart';
@@ -11,13 +12,34 @@ import { ProjectEditModal } from './components/ProjectEditModal';
 import { AdminCommentList } from './components/AdminCommentList';
 import { LoginScreen } from './components/LoginScreen';
 import { getTaskDocumentCounts } from './services/documentService';
-import { BarChart3, Layout, Settings, Share2, Sparkles, UserCircle, Plus, List, Edit2, MessageSquare } from 'lucide-react';
+import {
+  checkAuthSession,
+  signOut,
+  isAdmin,
+  getAllUsers,
+  approveUser,
+  rejectUser,
+  ADMIN_EMAIL,
+  SECURITY_CONFIG,
+  UserProfile
+} from './services/supabaseClient';
+import { BarChart3, Layout, Settings, Share2, Sparkles, UserCircle, Plus, List, Edit2, MessageSquare, LogOut, Shield } from 'lucide-react';
 
-type ViewMode = 'dashboard' | 'detail' | 'commentList';
+type ViewMode = 'dashboard' | 'detail' | 'commentList' | 'admin';
 
 const App: React.FC = () => {
   // Authentication state
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+
+  // Admin state
+  const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
+
+  // Session timer refs
+  const sessionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const warningTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // View state
   const [viewMode, setViewMode] = useState<ViewMode>('dashboard');
@@ -117,20 +139,217 @@ const App: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    const auth = localStorage.getItem('apqp_authenticated');
-    if (auth === 'true') {
-      setIsAuthenticated(true);
-    }
+  // Session timeout management
+  const resetSessionTimer = useCallback(() => {
+    if (sessionTimeoutRef.current) clearTimeout(sessionTimeoutRef.current);
+    if (warningTimeoutRef.current) clearTimeout(warningTimeoutRef.current);
+
+    warningTimeoutRef.current = setTimeout(() => {
+      alert('세션이 5분 후 만료됩니다. 계속 사용하시려면 화면을 클릭해주세요.');
+    }, SECURITY_CONFIG.SESSION_TIMEOUT - SECURITY_CONFIG.WARNING_BEFORE);
+
+    sessionTimeoutRef.current = setTimeout(async () => {
+      alert('세션이 만료되었습니다. 다시 로그인해주세요.');
+      await handleLogout();
+    }, SECURITY_CONFIG.SESSION_TIMEOUT);
   }, []);
 
-  const handleLogin = () => {
+  // Activity detection
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const handleActivity = () => resetSessionTimer();
+    SECURITY_CONFIG.ACTIVITY_EVENTS.forEach(event => {
+      window.addEventListener(event, handleActivity);
+    });
+
+    resetSessionTimer();
+
+    return () => {
+      SECURITY_CONFIG.ACTIVITY_EVENTS.forEach(event => {
+        window.removeEventListener(event, handleActivity);
+      });
+      if (sessionTimeoutRef.current) clearTimeout(sessionTimeoutRef.current);
+      if (warningTimeoutRef.current) clearTimeout(warningTimeoutRef.current);
+    };
+  }, [isAuthenticated, resetSessionTimer]);
+
+  // Check auth session on mount
+  useEffect(() => {
+    const initAuth = async () => {
+      setIsAuthLoading(true);
+      try {
+        const { user, profile } = await checkAuthSession();
+        if (user && profile) {
+          if (user.email !== ADMIN_EMAIL && !profile.approved) {
+            await signOut();
+            setIsAuthenticated(false);
+          } else {
+            setCurrentUser(user);
+            setUserProfile(profile);
+            setIsAuthenticated(true);
+          }
+        }
+      } catch (err) {
+        console.error('인증 확인 오류:', err);
+      } finally {
+        setIsAuthLoading(false);
+      }
+    };
+
+    initAuth();
+  }, []);
+
+  const handleLogin = (user: User) => {
+    setCurrentUser(user);
     setIsAuthenticated(true);
   };
+
+  const handleLogout = async () => {
+    if (window.confirm('로그아웃 하시겠습니까?')) {
+      await signOut();
+      setIsAuthenticated(false);
+      setCurrentUser(null);
+      setUserProfile(null);
+    }
+  };
+
+  // Admin functions
+  const handleApproveUser = async (userId: string) => {
+    const success = await approveUser(userId);
+    if (success) {
+      const users = await getAllUsers();
+      setAllUsers(users);
+      alert('사용자가 승인되었습니다.');
+    }
+  };
+
+  const handleRejectUser = async (userId: string) => {
+    if (window.confirm('이 사용자를 거부하시겠습니까?')) {
+      const success = await rejectUser(userId);
+      if (success) {
+        const users = await getAllUsers();
+        setAllUsers(users);
+        alert('사용자가 거부되었습니다.');
+      }
+    }
+  };
+
+  // Load users when viewing admin panel
+  useEffect(() => {
+    if (viewMode === 'admin' && isAdmin(currentUser?.email)) {
+      getAllUsers().then(setAllUsers);
+    }
+  }, [viewMode, currentUser?.email]);
+
+  // Show loading screen
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   // Show login screen if not authenticated
   if (!isAuthenticated) {
     return <LoginScreen onLogin={handleLogin} />;
+  }
+
+  // Admin Panel View
+  if (viewMode === 'admin' && isAdmin(currentUser?.email)) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col">
+        <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 sticky top-0 z-30">
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={() => setViewMode('dashboard')}
+              className="bg-gray-100 hover:bg-gray-200 p-2 rounded-lg transition-colors"
+            >
+              <List className="text-gray-700" size={20} />
+            </button>
+            <div className="bg-indigo-600 p-2 rounded-lg">
+              <Shield className="text-white" size={20} />
+            </div>
+            <div>
+              <h1 className="text-lg font-bold text-gray-900">관리자 패널</h1>
+              <p className="text-xs text-gray-500">사용자 승인 관리</p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-4">
+            <span className="text-sm text-gray-600">{currentUser?.email}</span>
+            <button onClick={handleLogout} className="text-gray-400 hover:text-red-500 transition-colors">
+              <LogOut size={20} />
+            </button>
+          </div>
+        </header>
+
+        <main className="flex-grow p-6">
+          <div className="max-w-4xl mx-auto space-y-6">
+            {/* Pending Users */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <h2 className="text-xl font-bold text-amber-600 mb-4">⏳ 승인 대기 중</h2>
+              <div className="space-y-3">
+                {allUsers.filter(u => !u.approved && u.is_active).length === 0 ? (
+                  <p className="text-gray-500 text-sm">승인 대기 중인 사용자가 없습니다.</p>
+                ) : (
+                  allUsers.filter(u => !u.approved && u.is_active).map(user => (
+                    <div key={user.id} className="flex items-center justify-between p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                      <div>
+                        <p className="font-bold text-gray-800">{user.email}</p>
+                        <p className="text-sm text-gray-500">가입: {user.created_at ? new Date(user.created_at).toLocaleString('ko-KR') : '-'}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleApproveUser(user.id)}
+                          className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors"
+                        >
+                          승인
+                        </button>
+                        <button
+                          onClick={() => handleRejectUser(user.id)}
+                          className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors"
+                        >
+                          거부
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Approved Users */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <h2 className="text-xl font-bold text-emerald-600 mb-4">✓ 승인된 사용자</h2>
+              <div className="space-y-3">
+                {allUsers.filter(u => u.approved).map(user => (
+                  <div key={user.id} className="flex items-center justify-between p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                    <div>
+                      <p className="font-bold text-gray-800">
+                        {user.email}
+                        {user.email === ADMIN_EMAIL && <span className="ml-2 text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full">관리자</span>}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        마지막 로그인: {user.last_login ? new Date(user.last_login).toLocaleString('ko-KR') : '없음'}
+                      </p>
+                    </div>
+                    {user.email !== ADMIN_EMAIL && (
+                      <button
+                        onClick={() => handleRejectUser(user.id)}
+                        className="px-4 py-2 bg-gray-200 text-gray-600 rounded-lg font-medium hover:bg-red-100 hover:text-red-600 transition-colors"
+                      >
+                        비활성화
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
   }
 
   // 담당자 의견 목록 (관리자)
@@ -179,6 +398,18 @@ const App: React.FC = () => {
 
             <div className="h-8 w-px bg-gray-200 mx-2"></div>
 
+            {isAdmin(currentUser?.email) && (
+              <button
+                onClick={() => setViewMode('admin')}
+                className="flex items-center space-x-2 px-4 py-2 rounded-full text-sm font-medium border bg-indigo-50 border-indigo-300 text-indigo-800 hover:bg-indigo-100 transition-colors"
+              >
+                <Shield size={16} />
+                <span>관리자</span>
+              </button>
+            )}
+
+            <div className="h-8 w-px bg-gray-200 mx-2"></div>
+
             <button className="text-gray-400 hover:text-gray-600">
               <Share2 size={20} />
             </button>
@@ -187,10 +418,12 @@ const App: React.FC = () => {
             </button>
             <div className="flex items-center space-x-2 pl-2">
               <div className="text-right hidden md:block">
-                <p className="text-sm font-medium text-gray-700">김민수</p>
-                <p className="text-xs text-gray-400">프로젝트 매니저</p>
+                <p className="text-sm font-medium text-gray-700">{currentUser?.email?.split('@')[0] || '사용자'}</p>
+                <p className="text-xs text-gray-400">{currentUser?.email}</p>
               </div>
-              <UserCircle size={32} className="text-gray-300" />
+              <button onClick={handleLogout} className="text-gray-400 hover:text-red-500 transition-colors ml-2">
+                <LogOut size={20} />
+              </button>
             </div>
           </div>
         </header>
@@ -280,6 +513,18 @@ const App: React.FC = () => {
 
           <div className="h-8 w-px bg-gray-200 mx-2"></div>
 
+          {isAdmin(currentUser?.email) && (
+            <button
+              onClick={() => setViewMode('admin')}
+              className="flex items-center space-x-2 px-4 py-2 rounded-full text-sm font-medium border bg-indigo-50 border-indigo-300 text-indigo-800 hover:bg-indigo-100 transition-colors"
+            >
+              <Shield size={16} />
+              <span>관리자</span>
+            </button>
+          )}
+
+          <div className="h-8 w-px bg-gray-200 mx-2"></div>
+
           <button className="text-gray-400 hover:text-gray-600">
             <Share2 size={20} />
           </button>
@@ -288,10 +533,12 @@ const App: React.FC = () => {
           </button>
           <div className="flex items-center space-x-2 pl-2">
             <div className="text-right hidden md:block">
-              <p className="text-sm font-medium text-gray-700">{displayProject.manager || '김민수'}</p>
-              <p className="text-xs text-gray-400">프로젝트 매니저</p>
+              <p className="text-sm font-medium text-gray-700">{currentUser?.email?.split('@')[0] || displayProject.manager || '사용자'}</p>
+              <p className="text-xs text-gray-400">{currentUser?.email}</p>
             </div>
-            <UserCircle size={32} className="text-gray-300" />
+            <button onClick={handleLogout} className="text-gray-400 hover:text-red-500 transition-colors ml-2">
+              <LogOut size={20} />
+            </button>
           </div>
         </div>
       </header>
