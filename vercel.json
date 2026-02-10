@@ -16,10 +16,6 @@
           "value": "frame-ancestors 'self' https://*.vercel.app https://*.netlify.app"
         },
         {
-          "key": "X-Frame-Options",
-          "value": "SAMEORIGIN"
-        },
-        {
           "key": "X-XSS-Protection",
           "value": "1; mode=block"
         }
